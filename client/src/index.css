@@ -1,0 +1,312 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(212, 10%, 3.9%);
+  --foreground: hsl(0, 0%, 98%);
+  --muted: hsl(215, 3.7%, 15.9%);
+  --muted-foreground: hsl(215, 5%, 64.9%);
+  --popover: hsl(212, 10%, 3.9%);
+  --popover-foreground: hsl(0, 0%, 98%);
+  --card: hsl(212, 10%, 3.9%);
+  --card-foreground: hsl(0, 0%, 98%);
+  --border: hsl(215, 3.7%, 15.9%);
+  --input: hsl(215, 3.7%, 15.9%);
+  --primary: hsl(207, 90%, 54%);
+  --primary-foreground: hsl(211, 100%, 99%);
+  --secondary: hsl(215, 3.7%, 15.9%);
+  --secondary-foreground: hsl(0, 0%, 98%);
+  --accent: hsl(215, 3.7%, 15.9%);
+  --accent-foreground: hsl(0, 0%, 98%);
+  --destructive: hsl(0, 62.8%, 30.6%);
+  --destructive-foreground: hsl(0, 0%, 98%);
+  --ring: hsl(215, 4.9%, 83.9%);
+  --radius: 0.5rem;
+  --chart-1: hsl(220, 70%, 50%);
+  --chart-2: hsl(160, 60%, 45%);
+  --chart-3: hsl(30, 80%, 55%);
+  --chart-4: hsl(280, 65%, 60%);
+  --chart-5: hsl(340, 75%, 55%);
+  
+  /* Custom 3DPC colors matching the design */
+  --slate-50: hsl(210, 40%, 98%);
+  --slate-100: hsl(210, 40%, 96%);
+  --slate-200: hsl(214, 32%, 91%);
+  --slate-300: hsl(213, 27%, 84%);
+  --slate-400: hsl(215, 20%, 65%);
+  --slate-500: hsl(215, 16%, 47%);
+  --slate-600: hsl(215, 19%, 35%);
+  --slate-700: hsl(215, 25%, 27%);
+  --slate-800: hsl(217, 33%, 17%);
+  --slate-900: hsl(222, 84%, 5%);
+  
+  --cyan-400: hsl(187, 85%, 53%);
+  --cyan-500: hsl(188, 78%, 41%);
+  --cyan-600: hsl(188, 78%, 31%);
+  
+  --green-400: hsl(142, 76%, 36%);
+  --green-500: hsl(142, 71%, 45%);
+  --green-600: hsl(142, 76%, 36%);
+  
+  --yellow-400: hsl(54, 91%, 59%);
+  --yellow-500: hsl(45, 93%, 47%);
+  --yellow-600: hsl(32, 95%, 44%);
+  
+  --red-400: hsl(0, 84%, 60%);
+  --red-500: hsl(0, 72%, 51%);
+  --red-600: hsl(0, 70%, 35%);
+}
+
+.dark {
+  --background: hsl(222, 84%, 5%);
+  --foreground: hsl(0, 0%, 98%);
+  --muted: hsl(217, 33%, 17%);
+  --muted-foreground: hsl(215, 5%, 64.9%);
+  --popover: hsl(222, 84%, 5%);
+  --popover-foreground: hsl(0, 0%, 98%);
+  --card: hsl(217, 33%, 17%);
+  --card-foreground: hsl(0, 0%, 98%);
+  --border: hsl(215, 25%, 27%);
+  --input: hsl(215, 25%, 27%);
+  --primary: hsl(188, 78%, 41%);
+  --primary-foreground: hsl(0, 0%, 98%);
+  --secondary: hsl(217, 33%, 17%);
+  --secondary-foreground: hsl(0, 0%, 98%);
+  --accent: hsl(217, 33%, 17%);
+  --accent-foreground: hsl(0, 0%, 98%);
+  --destructive: hsl(0, 62.8%, 30.6%);
+  --destructive-foreground: hsl(0, 0%, 98%);
+  --ring: hsl(215, 4.9%, 83.9%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  }
+
+  /* Force dark theme */
+  html {
+    color-scheme: dark;
+  }
+  
+  html, body, #root {
+    @apply bg-slate-900 text-white;
+  }
+}
+
+@layer components {
+  /* Navigation styles matching the design */
+  .nav-tab {
+    @apply px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition-colors border-b-2 border-transparent hover:border-cyan-500;
+  }
+  
+  .nav-tab.active {
+    @apply text-white border-cyan-500;
+  }
+  
+  .nav-tab-mobile {
+    @apply flex flex-col items-center space-y-1 px-3 py-2 text-xs font-medium text-gray-400 hover:text-white transition-colors;
+  }
+  
+  .nav-tab-mobile.active {
+    @apply text-cyan-500;
+  }
+
+  /* Custom button styles for 3DPC theme */
+  .btn-primary {
+    @apply bg-cyan-500 hover:bg-cyan-600 text-white border-cyan-500 hover:border-cyan-600;
+  }
+  
+  .btn-secondary {
+    @apply bg-slate-700 hover:bg-slate-600 text-white border-slate-700 hover:border-slate-600;
+  }
+  
+  .btn-destructive {
+    @apply bg-red-600 hover:bg-red-700 text-white border-red-600 hover:border-red-700;
+  }
+
+  /* Status badge styles */
+  .status-submitted {
+    @apply bg-yellow-900 text-yellow-300 border-yellow-800;
+  }
+  
+  .status-approved {
+    @apply bg-blue-900 text-blue-300 border-blue-800;
+  }
+  
+  .status-started {
+    @apply bg-cyan-900 text-cyan-300 border-cyan-800;
+  }
+  
+  .status-finished {
+    @apply bg-green-900 text-green-300 border-green-800;
+  }
+  
+  .status-failed {
+    @apply bg-red-900 text-red-300 border-red-800;
+  }
+  
+  .status-cancelled {
+    @apply bg-gray-900 text-gray-300 border-gray-800;
+  }
+}
+
+@layer utilities {
+  /* Custom utilities for consistent spacing and colors */
+  .text-3dpc-primary {
+    color: hsl(188, 78%, 41%);
+  }
+  
+  .bg-3dpc-primary {
+    background-color: hsl(188, 78%, 41%);
+  }
+  
+  .border-3dpc-primary {
+    border-color: hsl(188, 78%, 41%);
+  }
+  
+  .hover\:bg-3dpc-primary:hover {
+    background-color: hsl(188, 78%, 31%);
+  }
+  
+  /* Dark theme specific utilities */
+  .bg-dark-card {
+    background-color: hsl(217, 33%, 17%);
+  }
+  
+  .bg-dark-surface {
+    background-color: hsl(222, 84%, 5%);
+  }
+  
+  .border-dark {
+    border-color: hsl(215, 25%, 27%);
+  }
+  
+  /* File upload drag styles */
+  .drag-active {
+    @apply border-cyan-500 bg-slate-700/50;
+  }
+  
+  /* Loading states */
+  .loading-shimmer {
+    @apply animate-pulse bg-slate-700;
+  }
+  
+  /* Focus styles for accessibility */
+  .focus-ring {
+    @apply focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 focus:ring-offset-slate-900;
+  }
+}
+
+/* Scrollbar styling for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(217, 33%, 17%);
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(215, 25%, 27%);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(215, 20%, 35%);
+}
+
+/* Custom animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Print status indicators */
+.status-indicator {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+}
+
+/* Form input styles for dark theme */
+input[type="text"], 
+input[type="email"], 
+input[type="password"], 
+input[type="date"], 
+textarea, 
+select {
+  @apply bg-slate-900 border-slate-600 text-white placeholder-gray-400;
+}
+
+input[type="text"]:focus, 
+input[type="email"]:focus, 
+input[type="password"]:focus, 
+input[type="date"]:focus, 
+textarea:focus, 
+select:focus {
+  @apply ring-2 ring-cyan-500 border-transparent;
+}
+
+/* Checkbox and radio button styles */
+input[type="checkbox"], 
+input[type="radio"] {
+  @apply rounded border-gray-600 bg-slate-900 text-cyan-500;
+}
+
+input[type="checkbox"]:focus, 
+input[type="radio"]:focus {
+  @apply ring-2 ring-cyan-500 ring-offset-2 ring-offset-slate-900;
+}
+
+/* Table styles for admin dashboard */
+table {
+  @apply border-collapse;
+}
+
+th {
+  @apply bg-slate-900 text-gray-400 font-medium text-xs uppercase tracking-wider;
+}
+
+td {
+  @apply text-gray-300;
+}
+
+tr:hover {
+  @apply bg-slate-700/50;
+}
+
+/* Progress bar styles */
+.progress-bar {
+  @apply bg-slate-700 rounded-full overflow-hidden;
+}
+
+.progress-fill {
+  @apply bg-cyan-500 h-full transition-all duration-300 ease-out;
+}
+
+/* Alert styles for different variants */
+.alert-info {
+  @apply bg-blue-900/20 border-blue-800 text-blue-300;
+}
+
+.alert-success {
+  @apply bg-green-900/20 border-green-800 text-green-300;
+}
+
+.alert-warning {
+  @apply bg-yellow-900/20 border-yellow-800 text-yellow-300;
+}
+
+.alert-error {
+  @apply bg-red-900/20 border-red-800 text-red-300;
+}
