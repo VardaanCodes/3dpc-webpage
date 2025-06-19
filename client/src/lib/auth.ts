@@ -45,6 +45,8 @@ export function onAuthStateChange(callback: (user: FirebaseUser | null) => void)
 
 export async function registerUser(firebaseUser: FirebaseUser) {
   try {
+    console.log("Registering user:", firebaseUser.email);
+    
     // Extract domain from email
     const emailDomain = firebaseUser.email?.split('@')[1];
     if (emailDomain !== 'smail.iitm.ac.in') {
@@ -58,8 +60,10 @@ export async function registerUser(firebaseUser: FirebaseUser) {
       role: 'student',
     };
 
+    console.log("Sending registration data:", userData);
     const response = await apiRequest('POST', '/api/user/register', userData);
     const user = await response.json();
+    console.log("Registration successful:", user);
     return user;
   } catch (error) {
     console.error("User registration error:", error);

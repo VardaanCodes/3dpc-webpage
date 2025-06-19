@@ -24,23 +24,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const { data: user } = useQuery<User>({
+  const { data: user, refetch: refetchUser } = useQuery<User>({
     queryKey: ["/api/user/profile"],
     enabled: !!firebaseUser,
+    retry: false,
   });
 
   useEffect(() => {
-    // Handle redirect result on app load
-    handleRedirectResult().catch(console.error);
+    const initAuth = async () => {
+      try {
+        // Handle redirect result on app load
+        const result = await handleRedirectResult();
+        if (result?.user) {
+          console.log("Redirect result user:", result.user.email);
+          setFirebaseUser(result.user);
+          // Trigger user profile refetch after registration
+          setTimeout(() => refetchUser(), 100);
+        }
+      } catch (error) {
+        console.error("Redirect result error:", error);
+      }
+    };
+
+    initAuth();
 
     // Set up auth state listener
     const unsubscribe = onAuthStateChange((user) => {
+      console.log("Auth state changed:", user?.email);
       setFirebaseUser(user);
       setLoading(false);
+      if (user) {
+        // Trigger user profile refetch when auth state changes
+        setTimeout(() => refetchUser(), 100);
+      }
     });
 
     return unsubscribe;
-  }, []);
+  }, [refetchUser]);
 
   return (
     <AuthContext.Provider value={{ firebaseUser, user: user || null, loading }}>

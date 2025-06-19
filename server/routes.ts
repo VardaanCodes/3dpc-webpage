@@ -4,33 +4,17 @@ import { storage } from "./storage";
 import { insertUserSchema, insertOrderSchema, insertBatchSchema, insertAuditLogSchema, UserRole, OrderStatus } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth middleware to extract user from Firebase token or session
+  // Auth middleware to extract user from session
   const requireAuth = async (req: any, res: any, next: any) => {
     try {
-      // Check for Firebase ID token in Authorization header
-      const authHeader = req.headers.authorization;
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        const idToken = authHeader.split('Bearer ')[1];
-        // For now, extract email from the token payload (simplified approach)
-        try {
-          const payload = JSON.parse(Buffer.from(idToken.split('.')[1], 'base64').toString());
-          const user = await storage.getUserByEmail(payload.email);
-          if (user) {
-            req.user = user;
-            return next();
-          }
-        } catch (e) {
-          // Token parsing failed, continue to session check
-        }
+      // Check session first
+      const user = req.session?.user;
+      if (user) {
+        req.user = user;
+        return next();
       }
       
-      // Fallback to session-based auth
-      const user = req.session?.user;
-      if (!user) {
-        return res.status(401).json({ message: "Authentication required" });
-      }
-      req.user = user;
-      next();
+      return res.status(401).json({ message: "Authentication required" });
     } catch (error) {
       res.status(401).json({ message: "Authentication failed" });
     }
