@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import path from "path";
 
 const app = express();
 app.use(express.json());
@@ -65,18 +66,20 @@ app.use((req, res, next) => {
   if (app.get("env") === "development") {
     await setupVite(app, server);
   } else {
-    serveStatic(app);
+    const clientRoot = path.resolve(process.cwd(), "dist/client");
+
+    app.use(express.static(clientRoot));
+
+    app.use("*", (_req, res) => {
+      res.sendFile(path.resolve(clientRoot, "index.html"));
+    });
   }
 
   // ALWAYS serve the app on port 5000
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = 5000;
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
+  server.listen(port, "localhost", () => {
     log(`serving on port ${port}`);
   });
 })();

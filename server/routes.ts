@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema, insertOrderSchema, insertBatchSchema, insertAuditLogSchema, UserRole, OrderStatus } from "@shared/schema";
+import { insertUserSchema, insertOrderSchema, insertBatchSchema, insertAuditLogSchema, UserRole, OrderStatus } from "../shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware to extract user from session or Firebase token
@@ -41,7 +41,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   const requireRole = (roles: string[]) => (req: any, res: any, next: any) => {
-    if (!roles.includes(req.user.role)) {
+    if (!req.user || !roles.includes(req.user.role)) {
       return res.status(403).json({ message: "Insufficient permissions" });
     }
     next();
@@ -50,6 +50,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // User routes
   app.get("/api/user/profile", requireAuth, async (req, res) => {
     try {
+      if (!req.user) return res.status(401).json({ message: "Unauthorized" });
       const user = await storage.getUser(req.user.id);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
@@ -81,7 +82,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       req.session.user = user;
       console.log("New user created:", user.email);
       res.status(201).json(user);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Registration error:", error);
       res.status(400).json({ message: "Invalid user data", error: error.message });
     }
@@ -113,10 +114,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Order routes
   app.get("/api/orders", requireAuth, async (req, res) => {
     try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      const currentUser = req.user;
       let orders;
       
-      if (req.user.role === UserRole.STUDENT) {
-        orders = await storage.getUserOrders(req.user.id);
+      if (currentUser.role === UserRole.STUDENT) {
+        orders = await storage.getUserOrders(currentUser.id);
       } else {
         orders = await storage.getAllOrders();
       }
@@ -128,7 +133,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return {
           ...order,
           club,
-          user: req.user.role !== UserRole.STUDENT ? user : undefined
+          user: currentUser.role !== UserRole.STUDENT ? user : undefined
         };
       }));
       
@@ -140,6 +145,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/orders/:id", requireAuth, async (req, res) => {
     try {
+      if (!req.user) return res.status(401).json({ message: "Unauthorized" });
       const order = await storage.getOrder(parseInt(req.params.id));
       if (!order) {
         return res.status(404).json({ message: "Order not found" });
@@ -161,6 +167,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/orders", requireAuth, async (req, res) => {
     try {
+      if (!req.user) return res.status(401).json({ message: "Unauthorized" });
       const orderData = insertOrderSchema.parse({
         ...req.body,
         userId: req.user.id
@@ -171,7 +178,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const maxFiles = fileUploadLimit?.value as number || 10;
       
       const user = await storage.getUser(req.user.id);
-      if (user && user.fileUploadsUsed >= maxFiles) {
+      if (user && (user.fileUploadsUsed || 0) >= maxFiles) {
         return res.status(400).json({ message: "File upload limit exceeded" });
       }
       
@@ -201,6 +208,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/orders/:id", requireAuth, requireRole([UserRole.ADMIN, UserRole.SUPERADMIN]), async (req, res) => {
     try {
+      if (!req.user) return res.status(401).json({ message: "Unauthorized" });
       const orderId = parseInt(req.params.id);
       const updates = req.body;
       
@@ -234,6 +242,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/batches", requireAuth, requireRole([UserRole.ADMIN, UserRole.SUPERADMIN]), async (req, res) => {
     try {
+      if (!req.user) return res.status(401).json({ message: "Unauthorized" });
       const batchData = insertBatchSchema.parse({
         ...req.body,
         createdById: req.user.id
@@ -258,6 +267,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/batches/:id", requireAuth, requireRole([UserRole.ADMIN, UserRole.SUPERADMIN]), async (req, res) => {
     try {
+      if (!req.user) return res.status(401).json({ message: "Unauthorized" });
       const batchId = parseInt(req.params.id);
       const updates = req.body;
       
@@ -277,10 +287,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(400).json({ message: "Failed to update batch" });
     }
   });
+  app.get('/api/user', (req, res) => {
+    if (req.user) {
+      res.json(req.user);
+    } else {
+      res.status(401).json({ error: 'Unauthorized' });
+    }
+  });
 
   // Statistics routes
   app.get("/api/stats/user", requireAuth, async (req, res) => {
     try {
+      if (!req.user) return res.status(401).json({ message: "Unauthorized" });
       const orders = await storage.getUserOrders(req.user.id);
       
       const stats = {
@@ -299,6 +317,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/stats/admin", requireAuth, requireRole([UserRole.ADMIN, UserRole.SUPERADMIN]), async (req, res) => {
     try {
+      if (!req.user) return res.status(401).json({ message: "Unauthorized" });
       const orders = await storage.getAllOrders();
       const batches = await storage.getAllBatches();
       
@@ -318,6 +337,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Audit log routes
   app.get("/api/audit-logs", requireAuth, requireRole([UserRole.ADMIN, UserRole.SUPERADMIN]), async (req, res) => {
     try {
+      if (!req.user) return res.status(401).json({ message: "Unauthorized" });
       const filters = {
         userId: req.query.userId ? parseInt(req.query.userId as string) : undefined,
         entityType: req.query.entityType as string,
