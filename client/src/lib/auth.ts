@@ -1,7 +1,6 @@
 import { 
   GoogleAuthProvider, 
-  signInWithRedirect, 
-  getRedirectResult, 
+  signInWithPopup, 
   signOut,
   onAuthStateChanged,
   type User as FirebaseUser
@@ -14,30 +13,25 @@ provider.setCustomParameters({
   hd: 'smail.iitm.ac.in' // Domain restriction
 });
 
-export function signInWithGoogle() {
-  return signInWithRedirect(auth, provider).catch(error => {
+export async function signInWithGoogle() {
+  try {
+    const result = await signInWithPopup(auth, provider);
+    console.log("Popup sign-in successful:", result.user.email);
+    
+    // Register user immediately after successful popup
+    await registerUser(result.user);
+    return result;
+  } catch (error) {
     console.error("Sign in error:", error);
     throw error;
-  });
+  }
 }
 
 export function logout() {
   return signOut(auth);
 }
 
-export async function handleRedirectResult() {
-  try {
-    const result = await getRedirectResult(auth);
-    if (result?.user) {
-      // Register or update user in our system
-      await registerUser(result.user);
-    }
-    return result;
-  } catch (error) {
-    console.error("Auth redirect error:", error);
-    throw error;
-  }
-}
+
 
 export function onAuthStateChange(callback: (user: FirebaseUser | null) => void) {
   return onAuthStateChanged(auth, callback);

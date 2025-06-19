@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { type User as FirebaseUser } from "firebase/auth";
-import { onAuthStateChange, handleRedirectResult } from "@/lib/auth";
+import { onAuthStateChange } from "@/lib/auth";
 import { type User } from "@shared/schema";
 import { useQuery } from "@tanstack/react-query";
 
@@ -31,23 +31,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        // Handle redirect result on app load
-        const result = await handleRedirectResult();
-        if (result?.user) {
-          console.log("Redirect result user:", result.user.email);
-          setFirebaseUser(result.user);
-          // Trigger user profile refetch after registration
-          setTimeout(() => refetchUser(), 100);
-        }
-      } catch (error) {
-        console.error("Redirect result error:", error);
-      }
-    };
-
-    initAuth();
-
     // Set up auth state listener
     const unsubscribe = onAuthStateChange((user) => {
       console.log("Auth state changed:", user?.email);

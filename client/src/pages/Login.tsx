@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/components/AuthProvider";
-import { signInWithGoogle, handleRedirectResult } from "@/lib/auth";
+import { signInWithGoogle } from "@/lib/auth";
 import { Printer, Chrome, AlertCircle, Loader2 } from "lucide-react";
 import { useState } from "react";
 
@@ -14,14 +14,7 @@ export default function Login() {
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Handle redirect result when component mounts
-    handleRedirectResult().catch((error) => {
-      console.error("Redirect error:", error);
-      setError("Authentication failed. Please try again.");
-      setIsSigningIn(false);
-    });
-  }, []);
+
 
   // Redirect if already authenticated
   useEffect(() => {
