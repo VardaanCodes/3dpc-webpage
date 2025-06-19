@@ -1,6 +1,7 @@
 import { useAuth } from "./AuthProvider";
-import { Navigate } from "wouter";
+import { useLocation } from "wouter";
 import { UserRole } from "@shared/schema";
+import { useEffect } from "react";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -9,6 +10,13 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
   const { firebaseUser, user, loading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!loading && (!firebaseUser || !user)) {
+      setLocation("/login");
+    }
+  }, [loading, firebaseUser, user, setLocation]);
 
   if (loading) {
     return (
@@ -19,7 +27,7 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
   }
 
   if (!firebaseUser || !user) {
-    return <Navigate to="/login" />;
+    return null;
   }
 
   if (requiredRole && user.role !== UserRole[requiredRole]) {

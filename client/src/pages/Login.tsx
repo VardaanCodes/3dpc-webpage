@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Navigate } from "wouter";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -10,6 +10,7 @@ import { useState } from "react";
 
 export default function Login() {
   const { firebaseUser, loading } = useAuth();
+  const [, setLocation] = useLocation();
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,9 +24,11 @@ export default function Login() {
   }, []);
 
   // Redirect if already authenticated
-  if (!loading && firebaseUser) {
-    return <Navigate to="/submit" />;
-  }
+  useEffect(() => {
+    if (!loading && firebaseUser) {
+      setLocation("/submit");
+    }
+  }, [loading, firebaseUser, setLocation]);
 
   const handleSignIn = async () => {
     try {
