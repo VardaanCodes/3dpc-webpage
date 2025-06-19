@@ -13,10 +13,10 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    if (!loading && (!firebaseUser || !user)) {
+    if (!loading && !firebaseUser) {
       setLocation("/login");
     }
-  }, [loading, firebaseUser, user, setLocation]);
+  }, [loading, firebaseUser, setLocation]);
 
   if (loading) {
     return (
@@ -26,8 +26,17 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
     );
   }
 
-  if (!firebaseUser || !user) {
+  if (!firebaseUser) {
     return null;
+  }
+
+  // Allow access if Firebase user exists, even if backend user is still loading
+  if (!user && firebaseUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-900">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-cyan-500"></div>
+      </div>
+    );
   }
 
   if (requiredRole && user.role !== UserRole[requiredRole]) {

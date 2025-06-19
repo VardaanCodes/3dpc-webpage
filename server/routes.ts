@@ -42,22 +42,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/user/register", async (req, res) => {
     try {
-      const userData = insertUserSchema.parse(req.body);
+      console.log("Registration request body:", req.body);
       
-      // Check if user already exists
-      const existingUser = await storage.getUserByEmail(userData.email);
+      // Check if user already exists first
+      const existingUser = await storage.getUserByEmail(req.body.email);
       if (existingUser) {
         // Store user in session and return
         req.session.user = existingUser;
+        console.log("Existing user logged in:", existingUser.email);
         return res.json(existingUser);
       }
 
+      // Validate the data against schema
+      const userData = insertUserSchema.parse(req.body);
       const user = await storage.createUser(userData);
+      
       // Store new user in session
       req.session.user = user;
+      console.log("New user created:", user.email);
       res.status(201).json(user);
     } catch (error) {
-      res.status(400).json({ message: "Invalid user data" });
+      console.error("Registration error:", error);
+      res.status(400).json({ message: "Invalid user data", error: error.message });
     }
   });
 
