@@ -12,9 +12,22 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
+  
+  // Add Firebase ID token if user is authenticated
+  try {
+    const { auth } = await import("./firebase");
+    if (auth.currentUser) {
+      const idToken = await auth.currentUser.getIdToken();
+      headers["Authorization"] = `Bearer ${idToken}`;
+    }
+  } catch (error) {
+    // Continue without token if Firebase is not available
+  }
+
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
@@ -29,7 +42,21 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
+    const headers: Record<string, string> = {};
+    
+    // Add Firebase ID token if user is authenticated
+    try {
+      const { auth } = await import("./firebase");
+      if (auth.currentUser) {
+        const idToken = await auth.currentUser.getIdToken();
+        headers["Authorization"] = `Bearer ${idToken}`;
+      }
+    } catch (error) {
+      // Continue without token if Firebase is not available
+    }
+
     const res = await fetch(queryKey[0] as string, {
+      headers,
       credentials: "include",
     });
 

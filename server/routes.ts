@@ -4,14 +4,36 @@ import { storage } from "./storage";
 import { insertUserSchema, insertOrderSchema, insertBatchSchema, insertAuditLogSchema, UserRole, OrderStatus } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth middleware to extract user from session (placeholder for Firebase auth)
-  const requireAuth = (req: any, res: any, next: any) => {
-    const user = req.session?.user;
-    if (!user) {
-      return res.status(401).json({ message: "Authentication required" });
+  // Auth middleware to extract user from Firebase token or session
+  const requireAuth = async (req: any, res: any, next: any) => {
+    try {
+      // Check for Firebase ID token in Authorization header
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const idToken = authHeader.split('Bearer ')[1];
+        // For now, extract email from the token payload (simplified approach)
+        try {
+          const payload = JSON.parse(Buffer.from(idToken.split('.')[1], 'base64').toString());
+          const user = await storage.getUserByEmail(payload.email);
+          if (user) {
+            req.user = user;
+            return next();
+          }
+        } catch (e) {
+          // Token parsing failed, continue to session check
+        }
+      }
+      
+      // Fallback to session-based auth
+      const user = req.session?.user;
+      if (!user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      req.user = user;
+      next();
+    } catch (error) {
+      res.status(401).json({ message: "Authentication failed" });
     }
-    req.user = user;
-    next();
   };
 
   const requireRole = (roles: string[]) => (req: any, res: any, next: any) => {
@@ -41,10 +63,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if user already exists
       const existingUser = await storage.getUserByEmail(userData.email);
       if (existingUser) {
+        // Store user in session and return
+        req.session.user = existingUser;
         return res.json(existingUser);
       }
 
       const user = await storage.createUser(userData);
+      // Store new user in session
+      req.session.user = user;
       res.status(201).json(user);
     } catch (error) {
       res.status(400).json({ message: "Invalid user data" });
