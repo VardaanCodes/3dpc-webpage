@@ -11,11 +11,14 @@ import { apiRequest } from "./queryClient";
 
 const provider = new GoogleAuthProvider();
 provider.setCustomParameters({
-  hd: 'college.edu' // Domain restriction
+  hd: 'smail.iitm.ac.in' // Domain restriction
 });
 
 export function signInWithGoogle() {
-  signInWithRedirect(auth, provider);
+  return signInWithRedirect(auth, provider).catch(error => {
+    console.error("Sign in error:", error);
+    throw error;
+  });
 }
 
 export function logout() {
@@ -44,8 +47,8 @@ export async function registerUser(firebaseUser: FirebaseUser) {
   try {
     // Extract domain from email
     const emailDomain = firebaseUser.email?.split('@')[1];
-    if (emailDomain !== 'college.edu') {
-      throw new Error('Only @college.edu email addresses are allowed');
+    if (emailDomain !== 'smail.iitm.ac.in') {
+      throw new Error('Only @smail.iitm.ac.in email addresses are allowed');
     }
 
     const userData = {

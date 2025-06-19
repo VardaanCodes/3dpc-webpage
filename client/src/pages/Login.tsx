@@ -37,7 +37,17 @@ export default function Login() {
       await signInWithGoogle();
     } catch (error: any) {
       console.error("Sign in error:", error);
-      setError(error.message || "Failed to sign in. Please try again.");
+      let errorMessage = "Failed to sign in. Please try again.";
+      
+      if (error.code === 'auth/unauthorized-domain') {
+        errorMessage = "This domain is not authorized. Please add this domain to your Firebase project's authorized domains.";
+      } else if (error.code === 'auth/popup-blocked') {
+        errorMessage = "Pop-up was blocked. Please allow pop-ups and try again.";
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        errorMessage = "Sign-in was cancelled. Please try again.";
+      }
+      
+      setError(errorMessage);
       setIsSigningIn(false);
     }
   };
@@ -76,7 +86,7 @@ export default function Login() {
           <CardHeader className="text-center">
             <CardTitle className="text-white text-xl">Sign In to Continue</CardTitle>
             <CardDescription className="text-gray-400">
-              Use your college Google account to access the print queue
+              Use your IIT Madras Google account to access the print queue
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -109,15 +119,15 @@ export default function Login() {
               <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
                 <h4 className="text-sm font-medium text-white mb-2">Authentication Requirements</h4>
                 <ul className="text-xs text-gray-400 space-y-1 text-left">
-                  <li>• Must use your @college.edu email address</li>
+                  <li>• Must use your @smail.iitm.ac.in email address</li>
                   <li>• Account will be automatically created on first login</li>
-                  <li>• Only authorized college accounts can access the system</li>
+                  <li>• Only authorized IIT Madras accounts can access the system</li>
                 </ul>
               </div>
 
               <p className="text-xs text-gray-500">
                 By signing in, you agree to follow the 3D printing guidelines and club policies.
-                Contact 3dpc@college.edu for support.
+                Contact 3dpc@iitm.ac.in for support.
               </p>
             </div>
           </CardContent>
