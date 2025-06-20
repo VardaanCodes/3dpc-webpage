@@ -9,6 +9,7 @@ import { Navigation } from "@/components/Navigation";
 import { Dashboard } from "@/pages/Dashboard";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
+import SuperAdminDashboard from "@/pages/SuperAdminDashboard";
 
 function Router() {
   return (
@@ -49,6 +50,13 @@ function Router() {
         <ProtectedRoute requiredRole="ADMIN">
           <Navigation />
           <Dashboard />
+        </ProtectedRoute>
+      </Route>
+
+      <Route path="/superadmin">
+        <ProtectedRoute requiredRole="SUPERADMIN">
+          <Navigation />
+          <SuperAdminDashboard />
         </ProtectedRoute>
       </Route>
       

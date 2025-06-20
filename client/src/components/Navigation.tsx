@@ -22,7 +22,11 @@ export function Navigation() {
 
   // Add admin panel for admin/superadmin users
   if (user?.role === UserRole.ADMIN || user?.role === UserRole.SUPERADMIN) {
-    navItems.splice(2, 0, { path: "/admin", label: "Admin Panel", icon: List });
+    navItems.splice(2, 0, { path: "/admin", label: "Admin Dashboard", icon: List });
+  }
+
+  if (user?.role === UserRole.SUPERADMIN) {
+    navItems.splice(3, 0, { path: "/superadmin", label: "Super Admin", icon: List });
   }
 
   const handleLogout = async () => {

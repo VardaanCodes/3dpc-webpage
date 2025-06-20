@@ -3,10 +3,30 @@ import session from "express-session";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import path from "path";
+import admin from './firebaseAdmin';
+import { storage } from "./storage";
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Firebase authentication middleware
+app.use(async (req: Request, res: Response, next: NextFunction) => {
+  const token = req.headers.authorization?.split('Bearer ')?.[1];
+  if (token) {
+    try {
+      const decodedToken = await admin.auth().verifyIdToken(token);
+      const user = await storage.getUserByEmail(decodedToken.email!)
+      if (user) {
+        (req as any).user = user;
+      }
+    } catch (error) {
+      // Don't throw error, just don't authenticate
+      console.log("Invalid auth token");
+    }
+  }
+  next();
+});
 
 // Configure session middleware
 app.use(session({

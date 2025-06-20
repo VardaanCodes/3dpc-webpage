@@ -31,7 +31,7 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
   }
 
   // Allow access if Firebase user exists, even if backend user is still loading
-  if (!user && firebaseUser) {
+  if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-cyan-500"></div>
@@ -39,15 +39,38 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
     );
   }
 
-  if (requiredRole && user.role !== UserRole[requiredRole]) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-white mb-4">Access Denied</h1>
-          <p className="text-gray-400">You don't have permission to access this page.</p>
+  if (requiredRole) {
+    const requiredRoleEnum = UserRole[requiredRole];
+    if (
+      requiredRoleEnum === UserRole.ADMIN &&
+      user.role !== UserRole.ADMIN &&
+      user.role !== UserRole.SUPERADMIN
+    ) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-900">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-white mb-4">Access Denied</h1>
+            <p className="text-gray-400">
+              You don't have permission to access this page.
+            </p>
+          </div>
         </div>
-      </div>
-    );
+      );
+    } else if (
+      requiredRoleEnum === UserRole.SUPERADMIN &&
+      user.role !== UserRole.SUPERADMIN
+    ) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-900">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-white mb-4">Access Denied</h1>
+            <p className="text-gray-400">
+              You don't have permission to access this page.
+            </p>
+          </div>
+        </div>
+      );
+    }
   }
 
   return <>{children}</>;

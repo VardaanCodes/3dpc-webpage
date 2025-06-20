@@ -47,11 +47,21 @@ export async function registerUser(firebaseUser: FirebaseUser) {
       throw new Error('Only @smail.iitm.ac.in email addresses are allowed');
     }
 
+    const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS || '').split(',');
+    const superAdminEmails = (import.meta.env.VITE_SUPERADMIN_EMAILS || '').split(',');
+
+    let role = 'student';
+    if (superAdminEmails.includes(firebaseUser.email!)) {
+      role = 'superadmin';
+    } else if (adminEmails.includes(firebaseUser.email!)) {
+      role = 'admin';
+    }
+
     const userData = {
       email: firebaseUser.email!,
       displayName: firebaseUser.displayName || firebaseUser.email!.split('@')[0],
       photoURL: firebaseUser.photoURL,
-      role: 'student',
+      role,
     };
 
     console.log("Sending registration data:", userData);
