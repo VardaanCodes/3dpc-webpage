@@ -16,10 +16,17 @@ async function build() {
       platform: "node",
       target: "node18",
       format: "esm",
-      outfile: "dist/server.js",
-      external: [
+      outfile: "dist/server.js",      external: [
         // Add any packages that should be excluded from bundling
         "@neondatabase/serverless",
+        "firebase-admin",
+        "serverless-http",
+        "nanoid",
+        "express",
+        "express-session",
+        "drizzle-orm",
+        "drizzle-zod",
+        "zod",
       ],
       metafile: true,
       write: true,
