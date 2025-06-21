@@ -15,7 +15,7 @@ async function buildSimple() {
       platform: "node",
       target: "node18",
       format: "esm",
-      outfile: "dist/server.js",
+      outfile: "netlify/functions/server/server.js",
       // External everything that could cause issues
       external: [
         "*", // External all dependencies
@@ -28,32 +28,6 @@ async function buildSimple() {
     });
 
     console.log("Simple server build complete");
-
-    // Create Netlify function wrapper (optional, may fail in some environments)
-    try {
-      const fs = await import("fs");
-      const path = await import("path");
-
-      await fs.promises.mkdir(
-        path.join(process.cwd(), "netlify", "functions", "server"),
-        { recursive: true }
-      );
-
-      const functionCode = `import { handler as serverHandler } from '../../dist/server.js';
-export const handler = serverHandler;`;
-
-      await fs.promises.writeFile(
-        path.join(process.cwd(), "netlify", "functions", "server", "server.js"),
-        functionCode
-      );
-
-      console.log("Netlify function wrapper created");
-    } catch (err) {
-      console.warn(
-        "Could not create function wrapper (non-critical):",
-        err.message
-      );
-    }
   } catch (error) {
     console.error("Simple build failed:", error);
     process.exit(1);

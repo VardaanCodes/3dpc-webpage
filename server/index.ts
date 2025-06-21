@@ -117,5 +117,4 @@ app.use((req, res, next) => {
   });
 })();
 
-// Export handler for Netlify Functions
 export const handler = serverless(app);

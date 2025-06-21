@@ -14,7 +14,7 @@ async function build() {
       platform: "node",
       target: "node18",
       format: "esm",
-      outfile: "dist/server.js",
+      outfile: "netlify/functions/server/server.js",
       external: [
         // Core Node.js modules
         "path",
