@@ -2,7 +2,7 @@
 
 A comprehensive platform for managing 3D printing requests, queues, and administration in educational and club settings. This system streamlines the workflow for students, club members, and administrators, ensuring transparency, accountability, and efficiency in 3D printing operations.
 
----
+
 
 ## Table of Contents
 
@@ -14,7 +14,7 @@ A comprehensive platform for managing 3D printing requests, queues, and administ
 - [License](#license)
 - [Acknowledgements](#acknowledgements)
 
----
+
 
 ## Features
 
@@ -27,7 +27,7 @@ A comprehensive platform for managing 3D printing requests, queues, and administ
 - **File Management:** Secure file uploads and downloads with access controls.
 - **Customizable Workflows:** Support for club-specific rules, printer configurations, and approval processes.
 
----
+
 
 ## User Roles
 
@@ -35,7 +35,7 @@ A comprehensive platform for managing 3D printing requests, queues, and administ
 - **Club Admin:** Approve, reject, or manage print jobs for their club; manage club printers and members.
 - **Super Admin:** Oversee all clubs, manage global settings, users, printers, and handle escalations.
 
----
+
 
 ## Tech Stack
 
@@ -45,7 +45,7 @@ A comprehensive platform for managing 3D printing requests, queues, and administ
 - **Other:** TypeScript, Drizzle ORM, PostCSS
 
 
----
+
 
 ## Contributing
 
@@ -53,25 +53,25 @@ We welcome contributions from the community! Please read our [Code of Conduct](C
 
 We would really be grateful if you can create PRs to eradicate any vulnerabilities in the site.
 
----
+
 
 ## Code of Conduct
 
 All participants are expected to uphold our [Code of Conduct](CODE_OF_CONDUCT.md) to foster a welcoming and respectful environment.
 
----
+
 
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
 
----
+
 
 ## Acknowledgements
 
 - Developed and maintained by the 3DPC team.
 - Special thanks to all contributors and testers.
 
----
+
 
 > This site is powered by Netlify.
