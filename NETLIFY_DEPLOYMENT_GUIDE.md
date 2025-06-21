@@ -63,6 +63,37 @@ If you encounter 502 errors after deployment:
    netlify dev
    ```
 
+### Common Deployment Errors
+
+#### ES Module vs CommonJS Issues
+
+This project's `package.json` has `"type": "module"`, which means:
+- All `.js` files are treated as ES modules by default
+- They must use `import` instead of `require`
+- The `deploy-netlify.js` script uses ES module syntax
+- But `netlify/functions/server/server-cjs.js` uses CommonJS syntax
+
+If you see errors about `require is not defined in ES module scope`:
+- Make sure your build scripts use ES module syntax (with `import`)
+- Alternatively, rename your scripts to have `.cjs` extension for CommonJS files
+
+## Module System in this Project
+
+This project uses a mixed module system approach:
+
+1. **Main Project (ES Modules)**:
+   - `package.json` has `"type": "module"` 
+   - All deployment and build scripts use ES module syntax with `import`
+   - The `deploy-netlify.js` script uses ES module syntax
+
+2. **Netlify Function (CommonJS)**:
+   - The serverless function uses CommonJS syntax with `require()`
+   - Located at `netlify/functions/server/server-cjs.js`
+   - Has its own `package.json` with `"type": "commonjs"`
+   - This approach avoids the ES module compatibility issues in Netlify's runtime
+
+During deployment, the `deploy-netlify.js` script copies the CommonJS implementation to the main `server.js` file so that Netlify can properly execute it.
+
 ## Authentication Flow
 
 The authentication flow works as follows:

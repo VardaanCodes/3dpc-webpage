@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Server function for Netlify",
   "main": "server-cjs.js",
+  "type": "commonjs",
   "dependencies": {
     "express": "^4.18.2",
     "express-session": "^1.17.3",
