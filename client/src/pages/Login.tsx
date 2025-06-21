@@ -1,20 +1,17 @@
-import { useEffect } from "react";
-import { useLocation } from "wouter";
+import { useEffect, useState } from "react";
+import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/components/AuthProvider";
-import { signInWithGoogle } from "@/lib/auth";
+import { signInWithGoogle, signInAsGuest } from "@/lib/auth";
 import { Printer, Chrome, AlertCircle, Loader2 } from "lucide-react";
-import { useState } from "react";
 
 export default function Login() {
-  const { firebaseUser, loading } = useAuth();
+  const { firebaseUser, loading, setGuestUser } = useAuth();
   const [, setLocation] = useLocation();
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -45,6 +42,16 @@ export default function Login() {
     }
   };
 
+  const handleGuestSignIn = async () => {
+    try {
+      const guestUser = await signInAsGuest();
+      setGuestUser(guestUser);
+      setLocation("/submit");
+    } catch (error) {
+      setError("Failed to sign in as guest.");
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
@@ -63,14 +70,10 @@ export default function Login() {
         <div className="text-center mb-8">
           <div className="flex items-center justify-center space-x-2 mb-4">
             <Printer className="text-cyan-500 text-4xl h-12 w-12" />
-            <h1 className="text-3xl font-bold text-white">3DPC Queue</h1>
+            <h1 className="text-3xl font-bold text-white">The 3DPC Official Queue</h1>
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">
-            Welcome to the 3D Printing Club Queue
-          </h2>
           <p className="text-gray-400 text-center max-w-sm mx-auto">
-            Your one-stop platform for submitting, tracking, and managing your 3D printing requests. 
-            Streamline your projects from idea to reality.
+            The official 3DPC platform for submitting, tracking, and managing your 3D printing requests.
           </p>
         </div>
 
@@ -114,28 +117,37 @@ export default function Login() {
                 <ul className="text-xs text-gray-400 space-y-1 text-left">
                   <li>• Must use your @smail.iitm.ac.in email address</li>
                   <li>• Account will be automatically created on first login</li>
-                  <li>• Only authorized IIT Madras accounts can access the system</li>
                 </ul>
               </div>
 
               <p className="text-xs text-gray-500">
-                By signing in, you agree to follow the 3D printing guidelines and club policies.
-                Contact 3dpc@iitm.ac.in for support.
+                Contact 3dpc@smail.iitm.ac.in for support.
               </p>
             </div>
           </CardContent>
         </Card>
 
-        {/* Quick Info */}
-        <div className="mt-8 grid grid-cols-2 gap-4 text-center">
-          <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-            <div className="text-cyan-500 text-2xl font-bold mb-1">24/7</div>
-            <div className="text-xs text-gray-400">Queue Access</div>
-          </div>
-          <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-            <div className="text-cyan-500 text-2xl font-bold mb-1">1-7</div>
-            <div className="text-xs text-gray-400">Days Processing</div>
-          </div>
+        {/* Demo Mode Section */}
+        <div className="mt-8 text-center">
+          <Card className="bg-slate-800 border-slate-700 shadow-xl">
+            <CardHeader>
+              <CardTitle className="text-white">Experience the Demo</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-gray-400">
+                In the light of open-sourcing our project (thanks to Netlify for inspiring and supporting open source), we are offering a demo version of our site.
+              </p>
+              <Button
+                onClick={handleGuestSignIn}
+                className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-medium py-3 text-base transition-colors"
+              >
+                Login as Guest
+              </Button>
+              <Link to="/readme" className="text-xs text-cyan-500 hover:underline">
+                See our README for demo functionalities
+              </Link>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

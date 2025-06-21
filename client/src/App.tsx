@@ -10,6 +10,7 @@ import { Dashboard } from "@/pages/Dashboard";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
 import SuperAdminDashboard from "@/pages/SuperAdminDashboard";
+import DemoBanner from "@/components/DemoBanner";
 
 function Router() {
   return (
@@ -81,6 +82,7 @@ function App() {
         <TooltipProvider>
           <div className="min-h-screen bg-slate-900">
             <Toaster />
+            <DemoBanner />
             <Router />
           </div>
         </TooltipProvider>

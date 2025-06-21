@@ -1,3 +1,5 @@
+/** @format */
+
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -9,8 +11,8 @@ import { Printer, Plus, List, Book, Mail, LogOut, Menu } from "lucide-react";
 import { useState } from "react";
 
 export function Navigation() {
-  const [location] = useLocation();
-  const { user, firebaseUser } = useAuth();
+  const [, setLocation] = useLocation();
+  const { user, firebaseUser, setGuestUser } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navItems = [
@@ -20,18 +22,38 @@ export function Navigation() {
     { path: "/contact", label: "Contact", icon: Mail },
   ];
 
-  // Add admin panel for admin/superadmin users
-  if (user?.role === UserRole.ADMIN || user?.role === UserRole.SUPERADMIN) {
-    navItems.splice(2, 0, { path: "/admin", label: "Admin Dashboard", icon: List });
+  // Add admin panel for admin/superadmin/guest users
+  if (
+    user?.role === UserRole.enum.ADMIN ||
+    user?.role === UserRole.enum.SUPERADMIN ||
+    user?.role === UserRole.enum.GUEST
+  ) {
+    navItems.splice(2, 0, {
+      path: "/admin",
+      label: "Admin Dashboard",
+      icon: List,
+    });
   }
 
-  if (user?.role === UserRole.SUPERADMIN) {
-    navItems.splice(3, 0, { path: "/superadmin", label: "Super Admin", icon: List });
+  if (
+    user?.role === UserRole.enum.SUPERADMIN ||
+    user?.role === UserRole.enum.GUEST
+  ) {
+    navItems.splice(3, 0, {
+      path: "/superadmin",
+      label: "Super Admin",
+      icon: List,
+    });
   }
 
   const handleLogout = async () => {
     try {
-      await logout();
+      if (user?.role === UserRole.enum.GUEST) {
+        setGuestUser(null);
+      } else {
+        await logout();
+      }
+      setLocation("/login");
     } catch (error) {
       console.error("Logout failed:", error);
     }
@@ -76,11 +98,13 @@ export function Navigation() {
             {/* File Limit Indicator - Desktop */}
             <div className="hidden md:flex items-center space-x-2 text-sm">
               <span className="text-gray-400">Files:</span>
-              <span className="text-cyan-500 font-medium">{user?.fileUploadsUsed || 0}</span>
+              <span className="text-cyan-500 font-medium">
+                {user?.fileUploadsUsed || 0}
+              </span>
               <span className="text-gray-400">/</span>
               <span className="text-gray-300">10</span>
             </div>
-            
+
             <div className="flex items-center space-x-3">
               <div className="relative">
                 <Avatar className="w-10 h-10 border-2 border-cyan-500">
@@ -89,22 +113,24 @@ export function Navigation() {
                     {user?.displayName?.charAt(0).toUpperCase() || "U"}
                   </AvatarFallback>
                 </Avatar>
-                <Badge 
-                  variant="secondary" 
+                <Badge
+                  variant="secondary"
                   className="absolute -top-1 -right-1 bg-cyan-500 text-white text-xs h-5 w-5 flex items-center justify-center p-0"
                 >
                   {user?.fileUploadsUsed || 0}
                 </Badge>
               </div>
-              
+
               <div className="hidden md:block">
-                <p className="text-sm font-medium text-white">{user?.displayName}</p>
+                <p className="text-sm font-medium text-white">
+                  {user?.displayName}
+                </p>
                 <p className="text-xs text-gray-400 capitalize">{user?.role}</p>
               </div>
             </div>
-            
-            <Button 
-              variant="destructive" 
+
+            <Button
+              variant="destructive"
               size="sm"
               onClick={handleLogout}
               className="hidden md:flex"
@@ -137,7 +163,9 @@ export function Navigation() {
                     key={item.path}
                     href={item.path}
                     className={`flex flex-col items-center space-y-1 px-3 py-2 text-xs font-medium transition-colors ${
-                      isActive ? "text-cyan-500" : "text-gray-400 hover:text-white"
+                      isActive
+                        ? "text-cyan-500"
+                        : "text-gray-400 hover:text-white"
                     }`}
                     onClick={() => setMobileMenuOpen(false)}
                   >

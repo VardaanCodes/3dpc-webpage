@@ -7,6 +7,7 @@ import {
 } from "firebase/auth";
 import { auth } from "./firebase";
 import { apiRequest } from "./queryClient";
+import { UserRole, type User } from "../../../shared/schema";
 
 const provider = new GoogleAuthProvider();
 provider.setCustomParameters({
@@ -25,6 +26,23 @@ export async function signInWithGoogle() {
     console.error("Sign in error:", error);
     throw error;
   }
+}
+
+export function signInAsGuest(): User {
+  const guestUser: User = {
+    id: 0, // Mock ID
+    email: 'guest@example.com',
+    displayName: 'Guest User',
+    photoURL: null,
+    role: UserRole.enum.GUEST,
+    suspended: false,
+    fileUploadsUsed: 0,
+    notificationPreferences: {},
+    lastLogin: new Date(),
+    createdAt: new Date(),
+  };
+  
+  return guestUser;
 }
 
 export function logout() {

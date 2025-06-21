@@ -1,5 +1,5 @@
 import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
+import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
 export const users = pgTable("users", {
@@ -113,31 +113,17 @@ export const insertSystemConfigSchema = createInsertSchema(systemConfig).omit({
   updatedAt: true,
 });
 
-// Types
-export type User = typeof users.$inferSelect;
-export type InsertUser = z.infer<typeof insertUserSchema>;
-
-export type Club = typeof clubs.$inferSelect;
-export type InsertClub = z.infer<typeof insertClubSchema>;
-
-export type Order = typeof orders.$inferSelect;
-export type InsertOrder = z.infer<typeof insertOrderSchema>;
-
-export type Batch = typeof batches.$inferSelect;
-export type InsertBatch = z.infer<typeof insertBatchSchema>;
-
-export type AuditLog = typeof auditLogs.$inferSelect;
-export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
-
-export type SystemConfig = typeof systemConfig.$inferSelect;
-export type InsertSystemConfig = z.infer<typeof insertSystemConfigSchema>;
+export const selectUserSchema = createSelectSchema(users);
+export type User = z.infer<typeof selectUserSchema>;
 
 // Enums for type safety
-export const UserRole = {
-  STUDENT: "student",
-  ADMIN: "admin",
-  SUPERADMIN: "superadmin",
-} as const;
+export const UserRole = z.enum([
+  "USER",
+  "ADMIN",
+  "SUPERADMIN",
+  "GUEST",
+]);
+export type UserRole = z.infer<typeof UserRole>;
 
 export const OrderStatus = {
   SUBMITTED: "submitted",

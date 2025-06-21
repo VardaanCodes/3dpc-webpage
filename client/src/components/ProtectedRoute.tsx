@@ -5,7 +5,7 @@ import { useEffect } from "react";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredRole?: keyof typeof UserRole;
+  requiredRole?: keyof typeof UserRole.enum;
 }
 
 export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
@@ -13,10 +13,10 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    if (!loading && !firebaseUser) {
+    if (!loading && !firebaseUser && !user) {
       setLocation("/login");
     }
-  }, [loading, firebaseUser, setLocation]);
+  }, [loading, firebaseUser, user, setLocation]);
 
   if (loading) {
     return (
@@ -26,8 +26,12 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
     );
   }
 
-  if (!firebaseUser) {
+  if (!firebaseUser && !user) {
     return null;
+  }
+
+  if (user && user.role === UserRole.enum.GUEST) {
+    return <>{children}</>;
   }
 
   // Allow access if Firebase user exists, even if backend user is still loading
@@ -40,11 +44,11 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
   }
 
   if (requiredRole) {
-    const requiredRoleEnum = UserRole[requiredRole];
+    const requiredRoleEnum = UserRole.enum[requiredRole];
     if (
-      requiredRoleEnum === UserRole.ADMIN &&
-      user.role !== UserRole.ADMIN &&
-      user.role !== UserRole.SUPERADMIN
+      requiredRoleEnum === UserRole.enum.ADMIN &&
+      user.role !== UserRole.enum.ADMIN &&
+      user.role !== UserRole.enum.SUPERADMIN
     ) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-slate-900">
@@ -57,8 +61,8 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
         </div>
       );
     } else if (
-      requiredRoleEnum === UserRole.SUPERADMIN &&
-      user.role !== UserRole.SUPERADMIN
+      requiredRoleEnum === UserRole.enum.SUPERADMIN &&
+      user.role !== UserRole.enum.SUPERADMIN
     ) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-slate-900">
