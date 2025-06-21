@@ -52,17 +52,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Internal server error" });
     }
   });
-
   app.post("/api/user/register", async (req, res) => {
     try {
       console.log("Registration request body:", req.body);
+      console.log("User from token:", req.user);
 
       // Check if user already exists first
       const existingUser = await storage.getUserByEmail(req.body.email);
       if (existingUser) {
-        // Store user in session and return
-        req.session.user = existingUser;
-        console.log("Existing user logged in:", existingUser.email);
+        console.log("Existing user found:", existingUser.email);
+        // Don't store in session for serverless
         return res.json(existingUser);
       }
 
@@ -70,8 +69,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userData = insertUserSchema.parse(req.body);
       const user = await storage.createUser(userData);
 
-      // Store new user in session
-      req.session.user = user;
       console.log("New user created:", user.email);
       res.status(201).json(user);
     } catch (error: any) {

@@ -11,6 +11,8 @@ import { type User as FirebaseUser } from "firebase/auth";
 import { onAuthStateChange } from "@/lib/auth";
 import { type User } from "@shared/schema";
 import { useQuery } from "@tanstack/react-query";
+import { authStateManager } from "@/lib/authState";
+import { AuthDebugger } from "@/lib/authDebugger";
 
 interface AuthContextType {
   firebaseUser: FirebaseUser | null;
@@ -39,28 +41,110 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryKey: ["/api/user/profile"],
     enabled: !!firebaseUser && !guestUser,
     retry: false,
-  });
-
+  }); // Handle user registration when Firebase user is available but backend user is not
   useEffect(() => {
+    const userEmail = firebaseUser?.email || null;
+
+    AuthDebugger.log("Registration effect triggered", {
+      hasFirebaseUser: !!firebaseUser,
+      hasUser: !!user,
+      hasGuestUser: !!guestUser,
+      userEmail,
+      shouldAttempt: authStateManager.shouldAttemptRegistration(userEmail),
+    });
+
+    if (
+      firebaseUser &&
+      !user &&
+      !guestUser &&
+      authStateManager.shouldAttemptRegistration(userEmail)
+    ) {
+      console.log("Attempting user registration for:", userEmail);
+      AuthDebugger.log("Starting user registration", { userEmail });
+
+      authStateManager.setAuthenticating(true);
+      authStateManager.setLastAuthUser(userEmail);
+
+      const registerUserAsync = async () => {
+        const timeoutId = setTimeout(() => {
+          console.warn("Registration timeout, resetting auth state");
+          AuthDebugger.log("Registration timeout", { userEmail });
+          authStateManager.reset();
+          authStateManager.setAuthenticating(false);
+        }, 10000); // 10 second timeout
+
+        try {
+          const { registerUser } = await import("@/lib/auth");
+          await registerUser(firebaseUser);
+          AuthDebugger.log("User registration successful", { userEmail });
+          clearTimeout(timeoutId);
+          // Refetch user profile after successful registration
+          setTimeout(() => refetchUser(), 500);
+        } catch (error) {
+          clearTimeout(timeoutId);
+          console.error("User registration failed:", error);
+          AuthDebugger.log("User registration failed", {
+            userEmail,
+            error: error instanceof Error ? error.message : error,
+          });
+          // Reset state on error so user can try again
+          authStateManager.reset();
+        } finally {
+          authStateManager.setAuthenticating(false);
+        }
+      };
+
+      registerUserAsync();
+    }
+  }, [firebaseUser, user, guestUser, refetchUser]);
+  useEffect(() => {
+    let mounted = true;
+
+    AuthDebugger.log("Auth state listener setup", {});
+
     // Set up auth state listener
-    const unsubscribe = onAuthStateChange((user) => {
+    const unsubscribe = onAuthStateChange(async (user) => {
+      if (!mounted) return;
+
       console.log("Auth state changed:", user?.email);
+
+      AuthDebugger.log("Auth state changed", {
+        userEmail: user?.email,
+        hasUser: !!user,
+        mounted,
+      });
+
       setGuestUser(null);
       window.localStorage.removeItem("guest");
       setFirebaseUser(user);
-      setLoading(false);
+      authStateManager.reset(); // Reset auth state manager on auth change
+
       if (user) {
-        // Trigger user profile refetch when auth state changes
-        setTimeout(() => refetchUser(), 100);
+        // Add a small delay to ensure Firebase user is fully set
+        setTimeout(() => {
+          if (mounted) {
+            AuthDebugger.log("Refetching user profile", {
+              userEmail: user.email,
+            });
+            refetchUser();
+          }
+        }, 200);
       }
+
+      setLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+      mounted = false;
+      AuthDebugger.log("Auth state listener cleanup", {});
+      unsubscribe();
+    };
   }, [refetchUser]);
 
   const handleSetGuestUser = (user: User | null) => {
     setFirebaseUser(null);
     setGuestUser(user);
+    authStateManager.reset();
     if (user) {
       window.localStorage.setItem("guest", JSON.stringify(user));
     } else {

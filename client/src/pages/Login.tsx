@@ -14,6 +14,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/components/AuthProvider";
 import { signInWithGoogle, signInAsGuest } from "@/lib/auth";
 import { Printer, Chrome, AlertCircle, Loader2 } from "lucide-react";
+import { getEnvironmentInfo } from "@/lib/environment";
+import { AuthDebugger } from "@/lib/authDebugger";
 
 export default function Login() {
   const { firebaseUser, loading, setGuestUser } = useAuth();
@@ -21,20 +23,68 @@ export default function Login() {
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  console.log("Login component state:", {
+    firebaseUser: firebaseUser?.email,
+    loading,
+    isSigningIn,
+    environment: getEnvironmentInfo(),
+  });
   // Redirect if already authenticated
   useEffect(() => {
-    if (!loading && firebaseUser) {
-      setLocation("/submit");
-    }
-  }, [loading, firebaseUser, setLocation]);
+    console.log("Login useEffect triggered:", {
+      loading,
+      firebaseUser: firebaseUser?.email,
+      isSigningIn,
+    });
 
+    AuthDebugger.log("Login useEffect", {
+      loading,
+      hasFirebaseUser: !!firebaseUser,
+      firebaseUserEmail: firebaseUser?.email,
+      isSigningIn,
+    });
+
+    if (!loading && firebaseUser && !isSigningIn) {
+      console.log("Redirecting to /submit...");
+      AuthDebugger.log("Redirecting to /submit", {
+        firebaseUserEmail: firebaseUser.email,
+      });
+
+      // Add a small delay to prevent rapid redirects
+      const timer = setTimeout(() => {
+        setLocation("/submit");
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, firebaseUser, setLocation, isSigningIn]);
   const handleSignIn = async () => {
     try {
       setIsSigningIn(true);
       setError(null);
-      await signInWithGoogle();
+
+      console.log("Starting sign-in process...");
+      AuthDebugger.log("Sign-in process started", getEnvironmentInfo());
+
+      const result = await signInWithGoogle();
+      console.log("Sign-in result:", result.user.email);
+
+      AuthDebugger.log("Sign-in successful", {
+        userEmail: result.user.email,
+        userId: result.user.uid,
+      });
+
+      // Don't redirect here - let the useEffect handle it
+      // after authentication state is properly set
+      console.log("Sign in successful, waiting for auth state...");
     } catch (error: any) {
       console.error("Sign in error:", error);
+
+      AuthDebugger.log("Sign-in error", {
+        error: error.message,
+        code: error.code,
+        stack: error.stack,
+      });
+
       let errorMessage = "Failed to sign in. Please try again.";
 
       if (error.code === "auth/unauthorized-domain") {
@@ -43,11 +93,23 @@ export default function Login() {
       } else if (error.code === "auth/popup-blocked") {
         errorMessage =
           "Pop-up was blocked. Please allow pop-ups and try again.";
-      } else if (error.code === "auth/cancelled-popup-request") {
+      } else if (
+        error.code === "auth/cancelled-popup-request" ||
+        error.code === "auth/popup-closed-by-user"
+      ) {
         errorMessage = "Sign-in was cancelled. Please try again.";
+      } else if (error.code === "auth/network-request-failed") {
+        errorMessage =
+          "Network error. Please check your connection and try again.";
+      } else if (error.message?.includes("@smail.iitm.ac.in")) {
+        errorMessage =
+          "Please use your @smail.iitm.ac.in email address to sign in.";
+      } else if (error.message) {
+        errorMessage = error.message;
       }
 
       setError(errorMessage);
+    } finally {
       setIsSigningIn(false);
     }
   };

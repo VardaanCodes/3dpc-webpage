@@ -10,22 +10,44 @@ import {
 import { auth } from "./firebase";
 import { apiRequest } from "./queryClient";
 import { UserRole, type User } from "../../../shared/schema";
+import { isProduction, getEnvironmentInfo } from "./environment";
 
 const provider = new GoogleAuthProvider();
-provider.setCustomParameters({
-  hd: "smail.iitm.ac.in", // Domain restriction
-});
+// Only restrict domain in production
+if (isProduction()) {
+  provider.setCustomParameters({
+    hd: "smail.iitm.ac.in", // Domain restriction
+  });
+}
+
+console.log("Auth environment info:", getEnvironmentInfo());
 
 export async function signInWithGoogle() {
   try {
+    console.log("Starting Google sign-in...");
+
+    // Configure provider for better reliability
+    provider.addScope("email");
+    provider.addScope("profile");
+
     const result = await signInWithPopup(auth, provider);
     console.log("Popup sign-in successful:", result.user.email);
 
-    // Register user immediately after successful popup
-    await registerUser(result.user);
+    // Don't register user here - let the AuthProvider handle it
+    // when the auth state changes to prevent race conditions
     return result;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Sign in error:", error);
+
+    // Handle specific popup errors that might cause loops
+    if (error.code === "auth/popup-closed-by-user") {
+      throw new Error("Sign-in was cancelled. Please try again.");
+    } else if (error.code === "auth/network-request-failed") {
+      throw new Error(
+        "Network error. Please check your connection and try again."
+      );
+    }
+
     throw error;
   }
 }
@@ -63,7 +85,9 @@ export async function registerUser(firebaseUser: FirebaseUser) {
 
     // Extract domain from email
     const emailDomain = firebaseUser.email?.split("@")[1];
-    if (emailDomain !== "smail.iitm.ac.in") {
+
+    // Only check domain in production
+    if (isProduction() && emailDomain !== "smail.iitm.ac.in") {
       throw new Error("Only @smail.iitm.ac.in email addresses are allowed");
     }
 

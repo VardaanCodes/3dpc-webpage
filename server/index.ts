@@ -7,6 +7,7 @@ import path from "path";
 import admin from "./firebaseAdmin";
 import { storage } from "./storage";
 import serverless from "serverless-http";
+import { log, setupVite } from "./vite";
 
 const app = express();
 app.use(express.json());
@@ -17,14 +18,23 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
   const token = req.headers.authorization?.split("Bearer ")?.[1];
   if (token) {
     try {
+      console.log("Verifying Firebase token...");
       const decodedToken = await admin.auth().verifyIdToken(token);
+      console.log("Token verified for user:", decodedToken.email);
+
       const user = await storage.getUserByEmail(decodedToken.email!);
       if (user) {
         (req as any).user = user;
+        console.log("User attached to request:", user.email);
+      } else {
+        console.log(
+          "User not found in database for email:",
+          decodedToken.email
+        );
       }
-    } catch (error) {
+    } catch (error: any) {
       // Don't throw error, just don't authenticate
-      console.log("Invalid auth token");
+      console.log("Invalid auth token:", error.message);
     }
   }
   next();
