@@ -20,7 +20,7 @@ function Router() {
     <Switch>
       {/* Public routes */}
       <Route path="/login" component={Login} />
-
+      <Route path="/readme" component={Readme} />
       {/* Protected routes */}
       <Route path="/submit">
         <ProtectedRoute>
@@ -28,49 +28,36 @@ function Router() {
           <Dashboard />
         </ProtectedRoute>
       </Route>
-
       <Route path="/queue">
         <ProtectedRoute>
           <Navigation />
           <Dashboard />
         </ProtectedRoute>
       </Route>
-
       <Route path="/guidelines">
         <ProtectedRoute>
           <Navigation />
           <Dashboard />
         </ProtectedRoute>
       </Route>
-
       <Route path="/contact">
         <ProtectedRoute>
           <Navigation />
           <Dashboard />
         </ProtectedRoute>
       </Route>
-
       <Route path="/admin">
         <ProtectedRoute requiredRole="admin">
           <Navigation />
           <Dashboard />
         </ProtectedRoute>
-      </Route>
-
+      </Route>{" "}
       <Route path="/superadmin">
         <ProtectedRoute requiredRole="superadmin">
           <Navigation />
           <SuperAdminDashboard />
         </ProtectedRoute>
       </Route>
-
-      <Route path="/readme">
-        <ProtectedRoute>
-          <Navigation />
-          <Readme />
-        </ProtectedRoute>
-      </Route>
-
       {/* Default redirect to submit */}
       <Route path="/">
         <ProtectedRoute>
@@ -78,7 +65,6 @@ function Router() {
           <Dashboard />
         </ProtectedRoute>
       </Route>
-
       {/* Fallback to 404 */}
       <Route component={NotFound} />
     </Switch>
