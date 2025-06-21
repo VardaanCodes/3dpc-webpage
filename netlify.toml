@@ -23,3 +23,6 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+
+[functions.server]
+  external_node_modules = ["express", "serverless-http", "express-session"]
