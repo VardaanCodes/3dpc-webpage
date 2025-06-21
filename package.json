@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "cross-env NODE_ENV=development tsx server/index.ts",
     "build": "vite build",
+    "build:netlify": "vite build && npm run build:server",
+    "build:server": "tsx build-server.ts",
     "preview": "vite preview",
     "start": "cross-env NODE_ENV=production node dist/index.js",
     "check": "tsc",
@@ -75,7 +77,8 @@
     "wouter": "^3.3.5",
     "ws": "^8.18.0",
     "zod": "^3.24.2",
-    "zod-validation-error": "^3.4.0"
+    "zod-validation-error": "^3.4.0",
+    "serverless-http": "^3.2.0"
   },
   "devDependencies": {
     "@replit/vite-plugin-cartographer": "^0.2.7",
