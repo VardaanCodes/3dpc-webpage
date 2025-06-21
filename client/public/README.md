@@ -1,5 +1,3 @@
-<!-- @format -->
-
 # 3DPC Print Queue Management Website
 
 A comprehensive platform for managing 3D printing requests, queues, and administration in educational and club settings. This system streamlines the workflow for students, club members, and administrators, ensuring transparency, accountability, and efficiency in 3D printing operations.
