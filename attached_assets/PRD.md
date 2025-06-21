@@ -1,5 +1,7 @@
 # 3DPC Print Queue Management Website
+
 ---
+
 ## 1. Project Overview
 
 ### 1.1 Project Title
@@ -71,9 +73,10 @@ The platform will serve as the central hub for all 3D printing activities, handl
 ### 3.2 Print Order Submission System
 
 **Comprehensive Order Form:**
+
 - Club/Team name selection
-	- Auto complete functionality from predefined list. If a particular Club is chosen, other fields are autofilled
-	- If not autocomplete, assume new club, and allow manual filling of other details
+  - Auto complete functionality from predefined list. If a particular Club is chosen, other fields are autofilled
+  - If not autocomplete, assume new club, and allow manual filling of other details
 - Contact person details (auto-filled from login)
 - Project/Event name
 - Deadline of the event
@@ -83,6 +86,7 @@ The platform will serve as the central hub for all 3D printing activities, handl
 - Filament provision checkbox with explanation
 
 **File Management**
+
 - Configurable upload limits (X files per submission, Y files per Z days)
 - File retention period configurable by administrators
 - X-day(configurable from superadmin dashboard) default access period for student file downloads
@@ -91,6 +95,7 @@ The platform will serve as the central hub for all 3D printing activities, handl
 ### 3.3 Queue Management \& Status Tracking
 
 **Student Queue Interface**
+
 - Personal print queue visibility only
 - Real-time status updates with progress indicators
 - Expected delivery time calculation based on prioritization algorithm
@@ -100,6 +105,7 @@ The platform will serve as the central hub for all 3D printing activities, handl
 - File limit odometer display next to user avatar showing remaining uploads
 
 **Administrative Queue Dashboard**
+
 - Complete queue visibility with filtering and sorting options
 - Batch processing capabilities with dropdown folder organization
 - Priority management with visual indicators
@@ -107,6 +113,7 @@ The platform will serve as the central hub for all 3D printing activities, handl
 - Comprehensive order details and audit trail access
 
 **Status Types**
+
 - **Submitted**: Initial order placement
 - **Approved**: Admin approval with potential batching
 - **Cancelled**: Admin cancellation with mandatory reason
@@ -170,12 +177,14 @@ The platform will serve as the central hub for all 3D printing activities, handl
 - Performance metrics for operational optimization
 
 **Admin Analytics**
+
 - Print success rates and failure analysis
 - Resource utilization metrics
 - Queue performance statistics
 - Admin activity tracking
 
 **Super Admin Reports**
+
 - Comprehensive system usage statistics
 - Biweekly automated summary emails (customizable)
 - Filament usage tracking and reporting
@@ -294,7 +303,9 @@ The platform will serve as the central hub for all 3D printing activities, handl
 - Email delivery service for reliable notifications
 - Analytics platform for usage tracking and insights
 - Backup services for data redundancy and recovery
+
 ---
+
 ## 7. Performance
 
 ### 7.1 Performance Requirements
@@ -315,7 +326,6 @@ The platform will serve as the central hub for all 3D printing activities, handl
 - User acceptance testing with actual club members
 - Security testing for authentication and authorization
 - Performance testing under load conditions
-
 
 ### 8.2 Quality Metrics
 
@@ -373,7 +383,9 @@ The platform will serve as the central hub for all 3D printing activities, handl
 
 - Mobile application development for next year
 - Multi-printer support expansion
+
 ---
+
 ## 12. Success Criteria \& Metrics
 
 ### 12.1 Launch Success Metrics
@@ -382,7 +394,6 @@ The platform will serve as the central hub for all 3D printing activities, handl
 - User onboarding completion rate above 90%
 - System availability above 99%
 - Zero security incidents during launch period
-
 
 ### 12.2 Long-term Success Indicators
 
@@ -403,7 +414,6 @@ The platform will serve as the central hub for all 3D printing activities, handl
 - **Firebase**: Google's mobile and web development platform
 - **SOP**: Standard Operating Procedure
 
-
 ### 13.2 Reference Materials
 
 - Firebase documentation and best practices
@@ -417,4 +427,3 @@ The platform will serve as the central hub for all 3D printing activities, handl
 **Last Updated**: June 19, 2025
 **Next Review Date**: July 19, 2025
 **Document Owner**: 3DPC Development Team
-
