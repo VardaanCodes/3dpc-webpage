@@ -1,3 +1,5 @@
+/** @format */
+
 import { useLocation } from "wouter";
 import { SubmitPrint } from "./SubmitPrint";
 import { QueueStatus } from "./QueueStatus";
@@ -5,7 +7,6 @@ import { Guidelines } from "./Guidelines";
 import { Contact } from "./Contact";
 import { AdminDashboard } from "./AdminDashboard";
 import { useAuth } from "@/components/AuthProvider";
-import { UserRole } from "@shared/schema";
 
 export function Dashboard() {
   const [location] = useLocation();
@@ -22,7 +23,7 @@ export function Dashboard() {
       case "/contact":
         return <Contact />;
       case "/admin":
-        if (user?.role === UserRole.ADMIN || user?.role === UserRole.SUPERADMIN) {
+        if (user?.role === "admin" || user?.role === "superadmin") {
           return <AdminDashboard />;
         }
         return <QueueStatus />; // Fallback for unauthorized users

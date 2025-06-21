@@ -1,14 +1,18 @@
+/** @format */
+
 import { useAuth } from "./AuthProvider";
 import { useLocation } from "wouter";
-import { UserRole } from "@shared/schema";
 import { useEffect } from "react";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredRole?: keyof typeof UserRole.enum;
+  requiredRole?: string;
 }
 
-export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
+export function ProtectedRoute({
+  children,
+  requiredRole,
+}: ProtectedRouteProps) {
   const { firebaseUser, user, loading } = useAuth();
   const [, setLocation] = useLocation();
 
@@ -30,7 +34,7 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
     return null;
   }
 
-  if (user && user.role === UserRole.enum.GUEST) {
+  if (user && user.role === "GUEST") {
     return <>{children}</>;
   }
 
@@ -44,30 +48,25 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
   }
 
   if (requiredRole) {
-    const requiredRoleEnum = UserRole.enum[requiredRole];
-    if (
-      requiredRoleEnum === UserRole.enum.ADMIN &&
-      user.role !== UserRole.enum.ADMIN &&
-      user.role !== UserRole.enum.SUPERADMIN
-    ) {
+    const userRole = user.role;
+    let hasAccess = false;
+    if (requiredRole === "admin") {
+      if (userRole === "ADMIN" || userRole === "SUPERADMIN") {
+        hasAccess = true;
+      }
+    } else if (requiredRole === "superadmin") {
+      if (userRole === "SUPERADMIN") {
+        hasAccess = true;
+      }
+    }
+
+    if (!hasAccess) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-slate-900">
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-white mb-4">Access Denied</h1>
-            <p className="text-gray-400">
-              You don't have permission to access this page.
-            </p>
-          </div>
-        </div>
-      );
-    } else if (
-      requiredRoleEnum === UserRole.enum.SUPERADMIN &&
-      user.role !== UserRole.enum.SUPERADMIN
-    ) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-900">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-white mb-4">Access Denied</h1>
+            <h1 className="text-2xl font-bold text-white mb-4">
+              Access Denied
+            </h1>
             <p className="text-gray-400">
               You don't have permission to access this page.
             </p>

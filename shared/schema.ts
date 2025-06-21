@@ -1,4 +1,14 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+/** @format */
+
+import {
+  pgTable,
+  text,
+  serial,
+  integer,
+  boolean,
+  timestamp,
+  jsonb,
+} from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -7,7 +17,7 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   displayName: text("display_name").notNull(),
   photoURL: text("photo_url"),
-  role: text("role").notNull().default("student"), // student, admin, superadmin
+  role: text("role").notNull().default("USER"), // USER, ADMIN, SUPERADMIN, GUEST
   suspended: boolean("suspended").default(false),
   fileUploadsUsed: integer("file_uploads_used").default(0),
   notificationPreferences: jsonb("notification_preferences").default({}),
@@ -27,7 +37,9 @@ export const clubs = pgTable("clubs", {
 export const orders = pgTable("orders", {
   id: serial("id").primaryKey(),
   orderId: text("order_id").notNull().unique(), // Format: #<ClubCode><AY><PrintNumber>
-  userId: integer("user_id").references(() => users.id).notNull(),
+  userId: integer("user_id")
+    .references(() => users.id)
+    .notNull(),
   clubId: integer("club_id").references(() => clubs.id),
   projectName: text("project_name").notNull(),
   eventDeadline: timestamp("event_deadline"),
@@ -51,7 +63,9 @@ export const batches = pgTable("batches", {
   batchNumber: text("batch_number").notNull().unique(),
   name: text("name"),
   status: text("status").notNull().default("created"), // created, approved, started, finished
-  createdById: integer("created_by_id").references(() => users.id).notNull(),
+  createdById: integer("created_by_id")
+    .references(() => users.id)
+    .notNull(),
   startedAt: timestamp("started_at"),
   completedAt: timestamp("completed_at"),
   estimatedDuration: integer("estimated_duration_hours"),
@@ -60,7 +74,9 @@ export const batches = pgTable("batches", {
 
 export const auditLogs = pgTable("audit_logs", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id).notNull(),
+  userId: integer("user_id")
+    .references(() => users.id)
+    .notNull(),
   action: text("action").notNull(),
   entityType: text("entity_type").notNull(), // order, batch, user, system
   entityId: text("entity_id"),
@@ -117,12 +133,7 @@ export const selectUserSchema = createSelectSchema(users);
 export type User = z.infer<typeof selectUserSchema>;
 
 // Enums for type safety
-export const UserRole = z.enum([
-  "USER",
-  "ADMIN",
-  "SUPERADMIN",
-  "GUEST",
-]);
+export const UserRole = z.enum(["USER", "ADMIN", "SUPERADMIN", "GUEST"]);
 export type UserRole = z.infer<typeof UserRole>;
 
 export const OrderStatus = {

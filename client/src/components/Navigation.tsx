@@ -24,6 +24,17 @@ export function Navigation() {
 
   // Add admin panel for admin/superadmin/guest users
   if (
+    user?.role === UserRole.enum.SUPERADMIN ||
+    user?.role === UserRole.enum.GUEST
+  ) {
+    navItems.splice(2, 0, {
+      path: "/superadmin",
+      label: "Super Admin",
+      icon: List,
+    });
+  }
+
+  if (
     user?.role === UserRole.enum.ADMIN ||
     user?.role === UserRole.enum.SUPERADMIN ||
     user?.role === UserRole.enum.GUEST
@@ -35,17 +46,6 @@ export function Navigation() {
     });
   }
 
-  if (
-    user?.role === UserRole.enum.SUPERADMIN ||
-    user?.role === UserRole.enum.GUEST
-  ) {
-    navItems.splice(3, 0, {
-      path: "/superadmin",
-      label: "Super Admin",
-      icon: List,
-    });
-  }
-
   const handleLogout = async () => {
     try {
       if (user?.role === UserRole.enum.GUEST) {
@@ -53,7 +53,7 @@ export function Navigation() {
       } else {
         await logout();
       }
-      setLocation("/login");
+      window.location.assign("/login");
     } catch (error) {
       console.error("Logout failed:", error);
     }
