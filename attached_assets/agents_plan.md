@@ -32,6 +32,10 @@
   - Admin role assignments
 
 ---
+<!-- 
+## Open-Sourcing our project(the right way)
+Refer .\attached_assets\changes_in_the_agents_plan.md -->
+
 
 ## Upcoming Work
 ### Phase 3: Backend Development for Core Features
@@ -53,6 +57,7 @@
 - Create retention policy cleanup function
 
 ---
+
 
 ### Phase 4: Frontend Polish and Feature Completion
 **Step 4.1: Enhance Order Submission Form:**
