@@ -13,12 +13,10 @@ import { UserRole, type User } from "../../../shared/schema";
 import { isProduction, getEnvironmentInfo } from "./environment";
 
 const provider = new GoogleAuthProvider();
-// Only restrict domain in production
-if (isProduction()) {
-  provider.setCustomParameters({
-    hd: "smail.iitm.ac.in", // Domain restriction
-  });
-}
+// Always restrict domain to smail.iitm.ac.in, regardless of environment
+provider.setCustomParameters({
+  hd: "smail.iitm.ac.in", // Strict domain restriction
+});
 
 console.log("Auth environment info:", getEnvironmentInfo());
 
@@ -111,8 +109,9 @@ export async function registerUser(firebaseUser: FirebaseUser) {
     // Extract domain from email
     const emailDomain = firebaseUser.email?.split("@")[1];
 
-    // Only check domain in production
-    if (isProduction() && emailDomain !== "smail.iitm.ac.in") {
+    // Strictly enforce domain restriction
+    if (emailDomain !== "smail.iitm.ac.in") {
+      console.error("Invalid email domain:", emailDomain);
       throw new Error("Only @smail.iitm.ac.in email addresses are allowed");
     }
 
@@ -153,6 +152,10 @@ export async function registerUser(firebaseUser: FirebaseUser) {
       } else if (apiError.status === 500) {
         throw new Error(
           "Server error during registration. Please try again later."
+        );
+      } else if (apiError.status === 403) {
+        throw new Error(
+          "Access denied. Only @smail.iitm.ac.in email addresses are allowed."
         );
       } else if (apiError.status === 400) {
         throw new Error(

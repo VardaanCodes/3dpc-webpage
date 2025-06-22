@@ -207,6 +207,18 @@ app.use(async (req, res, next) => {
         const decodedToken = await firebaseAdmin.auth().verifyIdToken(token);
         console.log("Token verified for user:", decodedToken.email);
 
+        // Strictly validate email domain - only allow @smail.iitm.ac.in
+        if (
+          !decodedToken.email ||
+          !decodedToken.email.endsWith("@smail.iitm.ac.in")
+        ) {
+          console.error("Invalid email domain:", decodedToken.email);
+          return res.status(403).json({
+            message:
+              "Access denied. Only @smail.iitm.ac.in email addresses are allowed.",
+          });
+        }
+
         // Initialize database connection
         const database = await initializeDatabase();
 
@@ -223,12 +235,61 @@ app.use(async (req, res, next) => {
         if (userResults.length > 0) {
           req.user = userResults[0];
           console.log("User attached to request:", req.user.email);
+
+          // Update last login time
+          await database
+            .update(users)
+            .set({ lastLogin: new Date() })
+            .where(eq(users.id, req.user.id));
         } else {
           console.log(
             "User not found in database for email:",
             decodedToken.email
           );
-          // User will be created during registration flow
+
+          // Auto-create user with basic information
+          try {
+            const { insertUserSchema } = require("./schema.js");
+
+            const newUserData = {
+              email: decodedToken.email,
+              displayName:
+                decodedToken.name || decodedToken.email.split("@")[0],
+              photoURL: decodedToken.picture || null,
+              role: "USER", // Default role
+              suspended: false,
+              fileUploadsUsed: 0,
+              notificationPreferences: {},
+              lastLogin: new Date(),
+            };
+
+            const validatedData = insertUserSchema.parse(newUserData);
+
+            const newUser = await database
+              .insert(users)
+              .values(validatedData)
+              .returning();
+
+            req.user = newUser[0];
+            console.log("Auto-created new user:", req.user.email);
+
+            // Add audit log for user auto-creation
+            const { auditLogs } = require("./schema.js");
+            await database.insert(auditLogs).values({
+              userId: newUser[0].id,
+              action: "USER_AUTO_CREATED",
+              entityType: "user",
+              entityId: newUser[0].id.toString(),
+              details: {
+                createdVia: "auth_middleware",
+                emailDomain: "smail.iitm.ac.in",
+              },
+              timestamp: new Date(),
+            });
+          } catch (createError) {
+            console.error("Error auto-creating user:", createError);
+            // Continue without user - they'll be prompted to register
+          }
         }
       } else {
         console.log(
@@ -291,44 +352,111 @@ app.post("/api/user/register", async (req, res) => {
     const { users, insertUserSchema } = require("./schema.js");
     const { eq } = require("drizzle-orm");
 
+    // Validate email domain - only allow @smail.iitm.ac.in
+    const email = req.body.email;
+    if (!email || !email.endsWith("@smail.iitm.ac.in")) {
+      console.error("Invalid email domain:", email);
+      return res.status(403).json({
+        message:
+          "Access denied. Only @smail.iitm.ac.in email addresses are allowed.",
+      });
+    }
+
     // Check if user already exists
     const existingUser = await database
       .select()
       .from(users)
-      .where(eq(users.email, req.body.email))
+      .where(eq(users.email, email))
       .limit(1);
 
     if (existingUser.length > 0) {
       console.log("Existing user found:", existingUser[0].email);
-      return res.json(existingUser[0]);
+
+      // Update the last login time for the existing user
+      await database
+        .update(users)
+        .set({
+          lastLogin: new Date(),
+          // Update displayName and photoURL if they've changed
+          displayName: req.body.displayName || existingUser[0].displayName,
+          photoURL: req.body.photoURL || existingUser[0].photoURL,
+        })
+        .where(eq(users.id, existingUser[0].id));
+
+      // Fetch updated user
+      const updatedUser = await database
+        .select()
+        .from(users)
+        .where(eq(users.id, existingUser[0].id))
+        .limit(1);
+
+      return res.json(updatedUser[0]);
     }
 
     // Validate and create new user
     const userData = {
       ...req.body,
-      lastLogin: null,
+      email: email, // Ensure we use the validated email
+      lastLogin: new Date(),
       photoURL: req.body.photoURL || null,
-      role: req.body.role || "USER",
-      suspended: req.body.suspended ?? false,
-      fileUploadsUsed: req.body.fileUploadsUsed ?? 0,
-      notificationPreferences: req.body.notificationPreferences || null,
+      role: req.body.role || "USER", // Default to USER role
+      suspended: false,
+      fileUploadsUsed: 0,
+      notificationPreferences: req.body.notificationPreferences || {},
     };
 
-    const validatedData = insertUserSchema.parse(userData);
+    try {
+      const validatedData = insertUserSchema.parse(userData);
 
-    const newUser = await database
-      .insert(users)
-      .values(validatedData)
-      .returning();
+      const newUser = await database
+        .insert(users)
+        .values(validatedData)
+        .returning();
 
-    console.log("New user created:", newUser[0].email);
-    res.status(201).json(newUser[0]);
+      console.log("New user created:", newUser[0].email);
+
+      // Add audit log for user creation
+      const { auditLogs } = require("./schema.js");
+      await database.insert(auditLogs).values({
+        userId: newUser[0].id,
+        action: "USER_CREATED",
+        entityType: "user",
+        entityId: newUser[0].id.toString(),
+        details: {
+          registeredVia: "google",
+          emailDomain: "smail.iitm.ac.in",
+        },
+        timestamp: new Date(),
+      });
+
+      res.status(201).json(newUser[0]);
+    } catch (error) {
+      console.error("Error creating user:", error);
+      res.status(400).json({
+        message: "Invalid user data",
+        error: error.message,
+      });
+    }
   } catch (error) {
     console.error("Registration error:", error);
-    res.status(400).json({
-      message: "Invalid user data",
-      error: error.message,
-    });
+
+    // Provide more detailed error messages
+    if (error.message.includes("schema")) {
+      res.status(400).json({
+        message: "Invalid user data format",
+        error: error.message,
+      });
+    } else if (error.message.includes("email")) {
+      res.status(403).json({
+        message: "Email domain not allowed",
+        error: "Only @smail.iitm.ac.in email addresses are permitted",
+      });
+    } else {
+      res.status(400).json({
+        message: "Registration failed",
+        error: error.message,
+      });
+    }
   }
 });
 

@@ -155,12 +155,13 @@ export default function Login() {
         {/* Login Card */}
         <Card className="bg-slate-800 border-slate-700 shadow-xl">
           <CardHeader className="text-center">
+            {" "}
             <CardTitle className="text-white text-xl">
               Sign In to Continue
             </CardTitle>
             <CardDescription className="text-gray-400">
-              Use your IIT Madras Google account to access the print queue. If
-              you are facing any issues, contact the 3DPC
+              Use your IIT Madras @smail.iitm.ac.in Google account to access the
+              print queue. No other email domains are allowed.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -184,21 +185,28 @@ export default function Login() {
               ) : (
                 <>
                   <Chrome className="mr-3 h-5 w-5" />
-                  Sign in with Google
+                  Sign in with @smail.iitm.ac.in
                 </>
               )}
             </Button>
 
             <div className="text-center space-y-4">
               <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                {" "}
                 <h4 className="text-sm font-medium text-white mb-2">
                   Authentication Requirements
                 </h4>
                 <ul className="text-xs text-gray-400 space-y-1 text-left">
-                  <li>• Must use your @smail.iitm.ac.in email address</li>
+                  <li>
+                    •{" "}
+                    <strong>
+                      Must use your @smail.iitm.ac.in email address
+                    </strong>
+                  </li>
                   <li>
                     • Account will be automatically created on first login
                   </li>
+                  <li>• Only IIT Madras students are allowed access</li>
                 </ul>
               </div>
             </div>
