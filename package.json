@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "cross-env NODE_ENV=development tsx server/index.ts",
     "build": "vite build",
-    "build:netlify": "node deploy-netlify.js",
+    "build:netlify": "cd netlify/functions/server && npm install && cd ../../../ && node deploy-netlify.js",
     "build:server": "tsx build-server.ts",
     "build:server:simple": "tsx build-server-simple.ts --simple",
     "preview": "vite preview",
