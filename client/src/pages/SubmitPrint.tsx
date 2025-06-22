@@ -41,7 +41,7 @@ import { Layers, Users, User, Calendar, Palette, FileText } from "lucide-react";
 const submitPrintSchema = z.object({
   clubId: z.number().optional(),
   projectName: z.string().min(1, "Project name is required"),
-  eventDeadline: z.date().optional(),
+  eventDeadline: z.string().optional(),
   material: z.string().default("PLA"),
   color: z.string().default("White"),
   providingFilament: z.boolean().default(false),
