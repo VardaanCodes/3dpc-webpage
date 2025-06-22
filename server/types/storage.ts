@@ -1,0 +1,46 @@
+/** @format */
+
+import { User, Club, Order, AuditLog, SystemConfig } from "../shared/schema";
+
+/**
+ * Interface for storage operations across the application
+ * This abstraction allows for switching between different storage implementations
+ */
+export interface IStorage {
+  // User operations
+  getUser(id: number): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  createUser(user: Omit<User, "id" | "createdAt">): Promise<User>;
+  updateUser(id: number, updates: Partial<User>): Promise<User>;
+
+  // Club operations
+  getAllClubs(): Promise<Club[]>;
+  getClub(id: number): Promise<Club | undefined>;
+  createClub(club: Omit<Club, "id" | "createdAt">): Promise<Club>;
+  updateClub(id: number, updates: Partial<Club>): Promise<Club>;
+
+  // Order operations
+  getOrder(id: number): Promise<Order | undefined>;
+  getOrdersByUser(userId: number): Promise<Order[]>;
+  getOrdersByClub(clubId: number): Promise<Order[]>;
+  getOrdersByStatus(status: string): Promise<Order[]>;
+  createOrder(
+    order: Omit<Order, "id" | "submittedAt" | "updatedAt">
+  ): Promise<Order>;
+  updateOrder(id: number, updates: Partial<Order>): Promise<Order>;
+
+  // Audit log operations
+  createAuditLog(log: Omit<AuditLog, "id" | "timestamp">): Promise<AuditLog>;
+  getAuditLogs(
+    filters?: Partial<AuditLog>,
+    limit?: number
+  ): Promise<AuditLog[]>;
+
+  // System configuration
+  getSystemConfig(key: string): Promise<SystemConfig | undefined>;
+  updateSystemConfig(
+    key: string,
+    value: any,
+    updatedBy: number
+  ): Promise<SystemConfig>;
+}

@@ -1,0 +1,221 @@
+/** @format */
+
+import express from "express";
+import multer from "multer";
+import { netlifyBlobsService } from "../netlifyBlobs";
+import { FilesRepository } from "../repositories/files";
+import admin from "firebase-admin";
+import { auditLogsCollection, ordersCollection } from "../firestore";
+import { db } from "../db";
+import { eq } from "drizzle-orm";
+import { users, orders } from "../../shared/schema";
+
+const router = express.Router();
+const filesRepository = new FilesRepository();
+
+// Set up multer for in-memory file storage
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50 MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Check allowed file types
+    const allowedTypes = [
+      "application/vnd.ms-pki.stl",
+      "application/object",
+      "model/stl",
+      "model/obj",
+    ];
+    const allowedExtensions = [".stl", ".obj"];
+
+    const fileExt = file.originalname.toLowerCase().split(".").pop();
+
+    if (allowedExtensions.includes(`.${fileExt}`)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Invalid file type. Only STL and OBJ files are allowed."));
+    }
+  },
+});
+
+// Verify authentication middleware
+const authenticateUser = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const token = authHeader.split("Bearer ")[1];
+
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    req.user = decodedToken;
+
+    next();
+  } catch (error) {
+    console.error("Authentication error:", error);
+    res.status(401).json({ error: "Invalid authentication token" });
+  }
+};
+
+// Create API routes
+router.post(
+  "/upload",
+  authenticateUser,
+  upload.single("file"),
+  async (req, res) => {
+    try {
+      const file = req.file;
+      const { email } = req.user as any;
+      const { orderId, description } = req.body;
+
+      if (!file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      // Get user ID from database based on email (Firebase auth UID is not used in postgres)
+      const userResult = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      if (!userResult.length) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const userDbId = userResult[0].id;
+
+      // Upload file using the repository
+      const fileMetadata = await filesRepository.uploadFile(
+        file.buffer,
+        file.originalname,
+        file.mimetype || `application/${file.originalname.split(".").pop()}`,
+        file.size,
+        userDbId,
+        orderId ? parseInt(orderId, 10) : undefined
+      );
+
+      // Log the upload in audit logs (still using Firestore for now)
+      // This will be migrated to PostgreSQL audit logs in the future
+      await auditLogsCollection.add({
+        userId: email,
+        action: "UPLOAD",
+        entityType: "FILE",
+        entityId: fileMetadata.id,
+        details: `File ${fileMetadata.fileName} uploaded${
+          orderId ? ` for order ${orderId}` : ""
+        }`,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      res.json({
+        success: true,
+        file: fileMetadata,
+      });
+    } catch (error: any) {
+      console.error("File upload error:", error);
+      res
+        .status(500)
+        .json({ error: "File upload failed", details: error.message });
+    }
+  }
+);
+
+// Get a file
+router.get("/files/:id", authenticateUser, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get file metadata first
+    const metadata = await filesRepository.getFileMetadata(id);
+
+    if (!metadata) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    // Generate a signed URL for the file that expires in 15 minutes
+    const signedUrl = await filesRepository.getSignedUrl(id, 15);
+
+    res.json({
+      file: metadata,
+      url: signedUrl,
+    });
+  } catch (error: any) {
+    console.error("Error retrieving file:", error);
+    res.status(500).json({ error: "Could not retrieve file" });
+  }
+});
+
+// Delete a file
+router.delete("/files/:id", authenticateUser, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email } = req.user as any;
+
+    // Get file metadata first
+    const metadata = await filesRepository.getFileMetadata(id);
+
+    if (!metadata) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    // Check if user has permission to delete this file
+    // For example, check if it's their file or they have admin role
+    // TODO: Implement proper permission checks
+
+    // Delete the file
+    const success = await filesRepository.deleteFile(id, metadata.orderId);
+
+    if (!success) {
+      return res.status(500).json({ error: "Failed to delete file" });
+    }
+
+    // Log the deletion in audit logs (still using Firestore for now)
+    await auditLogsCollection.add({
+      userId: email,
+      action: "DELETE",
+      entityType: "FILE",
+      entityId: id,
+      details: `File ${metadata.fileName} deleted`,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    res.json({
+      success: true,
+      message: "File deleted successfully",
+    });
+  } catch (error: any) {
+    console.error("File deletion error:", error);
+    res
+      .status(500)
+      .json({ error: "File deletion failed", details: error.message });
+  }
+});
+
+// List files for an order
+router.get("/files/order/:orderId", authenticateUser, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    // Check permission to access this order's files
+    // TODO: Implement proper permission checks
+
+    // Get files for the order
+    const files = await filesRepository.getFilesByOrderId(
+      parseInt(orderId, 10)
+    );
+
+    res.json({
+      files,
+    });
+  } catch (error: any) {
+    console.error("Error listing files:", error);
+    res.status(500).json({ error: "Could not list files" });
+  }
+});
+
+export default router;

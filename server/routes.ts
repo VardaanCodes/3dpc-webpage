@@ -11,6 +11,7 @@ import {
   OrderStatus,
 } from "../shared/schema";
 import admin from "firebase-admin";
+import filesRoutes from "./routes/files";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware to extract user from session or Firebase token
@@ -537,6 +538,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     }
   );
+
+  // Add files routes
+  app.use("/api/files", filesRoutes);
 
   const httpServer = createServer(app);
   return httpServer;
