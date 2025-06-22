@@ -30,14 +30,22 @@ console.log("Starting Netlify deployment preparation...");
 const isDryRun = process.argv.includes("--dry-run");
 
 try {
-  // Step 1: Build the client application
+  // Step 1: Prepare schema for deployment
+  console.log("Preparing schema for deployment...");
+  if (!isDryRun) {
+    execSync("node prepare-netlify-schema.js", { stdio: "inherit" });
+  } else {
+    console.log("[Dry run] Would execute: node prepare-netlify-schema.js");
+  }
+
+  // Step 2: Build the client application
   console.log("Building client application...");
   if (!isDryRun) {
     execSync(clientBuildCommand, { stdio: "inherit" });
   } else {
     console.log("[Dry run] Would execute: " + clientBuildCommand);
   }
-  // Step 2: Copy the enhanced server file to server.js
+  // Step 3: Copy the enhanced server file to server.js
   console.log("Setting up enhanced serverless function...");
   if (fs.existsSync(serverEnhancedPath)) {
     if (!isDryRun) {

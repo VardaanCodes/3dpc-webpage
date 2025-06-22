@@ -165,7 +165,7 @@ const initializeDatabase = async () => {
     // Dynamic import for database modules to avoid cold start issues
     const { neon } = await import("@neondatabase/serverless");
     const { drizzle } = await import("drizzle-orm/neon-http");
-    const schema = await import("../../../shared/schema.js");
+    const schema = require("./schema.js");
 
     // Use NETLIFY_DATABASE_URL if available, otherwise fall back to DATABASE_URL
     const databaseUrl =
@@ -211,7 +211,7 @@ app.use(async (req, res, next) => {
         const database = await initializeDatabase();
 
         // Query user from database
-        const { users } = await import("../../../shared/schema.js");
+        const { users } = require("./schema.js");
         const { eq } = await import("drizzle-orm");
 
         const userResults = await database
@@ -288,9 +288,7 @@ app.post("/api/user/register", async (req, res) => {
     console.log("Registration request body:", req.body);
 
     const database = await initializeDatabase();
-    const { users, insertUserSchema } = await import(
-      "../../../shared/schema.js"
-    );
+    const { users, insertUserSchema } = require("./schema.js");
     const { eq } = await import("drizzle-orm");
 
     // Check if user already exists
@@ -350,7 +348,7 @@ app.post("/api/user/logout", (req, res) => {
 app.get("/api/clubs", async (req, res) => {
   try {
     const database = await initializeDatabase();
-    const { clubs } = await import("../../../shared/schema.js");
+    const { clubs } = require("./schema.js");
 
     const allClubs = await database.select().from(clubs);
     res.json(allClubs);
@@ -368,7 +366,7 @@ app.get("/api/clubs/search", async (req, res) => {
     }
 
     const database = await initializeDatabase();
-    const { clubs } = await import("../../../shared/schema.js");
+    const { clubs } = require("./schema.js");
     const { ilike } = await import("drizzle-orm");
 
     const searchResults = await database
@@ -391,7 +389,7 @@ app.get("/api/orders", requireAuth, async (req, res) => {
     }
 
     const database = await initializeDatabase();
-    const { orders, users, clubs } = await import("../../../shared/schema.js");
+    const { orders, users, clubs } = require("./schema.js");
     const { eq } = await import("drizzle-orm");
 
     let orderQuery = database
@@ -430,9 +428,7 @@ app.post("/api/orders", requireAuth, async (req, res) => {
     if (!req.user) return res.status(401).json({ message: "Unauthorized" });
 
     const database = await initializeDatabase();
-    const { orders, insertOrderSchema } = await import(
-      "../../../shared/schema.js"
-    );
+    const { orders, insertOrderSchema } = require("./schema.js");
 
     const orderData = {
       ...req.body,
@@ -462,8 +458,8 @@ app.get("/api/stats/user", requireAuth, async (req, res) => {
     if (!req.user) return res.status(401).json({ message: "Unauthorized" });
 
     const database = await initializeDatabase();
-    const { orders } = await import("../../../shared/schema.js");
-    const { eq, count } = await import("drizzle-orm");
+    const { orders } = require("./schema.js");
+    const { eq, count } = require("drizzle-orm");
 
     const userOrderCount = await database
       .select({ count: count() })
