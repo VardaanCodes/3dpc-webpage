@@ -25,10 +25,15 @@ console.log("Auth environment info:", getEnvironmentInfo());
 export async function signInWithGoogle() {
   try {
     console.log("Starting Google sign-in...");
+    console.log("Auth domain:", auth.app.options.authDomain);
+    console.log("Project ID:", auth.app.options.projectId);
 
     // Configure provider for better reliability
     provider.addScope("email");
     provider.addScope("profile");
+
+    // Clear any cached auth state that might cause issues
+    await auth.signOut().catch(() => {});
 
     const result = await signInWithPopup(auth, provider);
     console.log("Popup sign-in successful:", result.user.email);
@@ -38,13 +43,33 @@ export async function signInWithGoogle() {
     return result;
   } catch (error: any) {
     console.error("Sign in error:", error);
+    console.error("Error code:", error.code);
+    console.error("Error message:", error.message);
 
-    // Handle specific popup errors that might cause loops
-    if (error.code === "auth/popup-closed-by-user") {
+    // Handle specific Firebase auth errors
+    if (error.code === "auth/internal-error") {
+      console.error("Firebase internal error - checking configuration:");
+      console.error("Current auth config:", {
+        authDomain: auth.app.options.authDomain,
+        projectId: auth.app.options.projectId,
+        apiKey: auth.app.options.apiKey ? "present" : "missing"
+      });
+      throw new Error(
+        "Authentication service is not properly configured. Please check Firebase settings and try again."
+      );
+    } else if (error.code === "auth/popup-closed-by-user") {
       throw new Error("Sign-in was cancelled. Please try again.");
     } else if (error.code === "auth/network-request-failed") {
       throw new Error(
         "Network error. Please check your connection and try again."
+      );
+    } else if (error.code === "auth/configuration-not-found") {
+      throw new Error(
+        "Authentication is not properly configured. Please contact support."
+      );
+    } else if (error.code === "auth/popup-blocked") {
+      throw new Error(
+        "Pop-up was blocked by your browser. Please allow pop-ups for this site and try again."
       );
     }
 

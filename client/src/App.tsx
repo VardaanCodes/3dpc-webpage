@@ -14,13 +14,14 @@ import NotFound from "@/pages/not-found";
 import SuperAdminDashboard from "@/pages/SuperAdminDashboard";
 import DemoBanner from "@/components/DemoBanner";
 import Readme from "@/pages/Readme";
+import DebugFirebase from "@/pages/DebugFirebase";
 
 function Router() {
   return (
-    <Switch>
-      {/* Public routes */}
+    <Switch>      {/* Public routes */}
       <Route path="/login" component={Login} />
       <Route path="/readme" component={Readme} />
+      <Route path="/debug" component={DebugFirebase} />
       {/* Protected routes */}
       <Route path="/submit">
         <ProtectedRoute>
