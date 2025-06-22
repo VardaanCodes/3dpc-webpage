@@ -1,49 +1,14 @@
 /** @format */
 
-// Direct serverless function implementation using Express and serverless-http
-import express from "express";
-import serverless from "serverless-http";
-import admin from "../../../server/firebaseAdmin.js";
-import { storage } from "../../../server/storage.js";
-import session from "express-session";
-import {
-  insertUserSchema,
-  insertOrderSchema,
-  insertBatchSchema,
-  insertAuditLogSchema,
-  OrderStatus,
-} from "../../../shared/schema.js";
+// CommonJS serverless function for Netlify
+const express = require("express");
+const serverless = require("serverless-http");
+const session = require("express-session");
 
+// Create Express app
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-
-// Firebase authentication middleware
-app.use(async (req, res, next) => {
-  const token = req.headers.authorization?.split("Bearer ")?.[1];
-  if (token) {
-    try {
-      console.log("Verifying Firebase token...");
-      const decodedToken = await admin.auth().verifyIdToken(token);
-      console.log("Token verified for user:", decodedToken.email);
-
-      const user = await storage.getUserByEmail(decodedToken.email);
-      if (user) {
-        req.user = user;
-        console.log("User attached to request:", user.email);
-      } else {
-        console.log(
-          "User not found in database for email:",
-          decodedToken.email
-        );
-      }
-    } catch (error) {
-      // Don't throw error, just don't authenticate
-      console.log("Invalid auth token:", error.message);
-    }
-  }
-  next();
-});
 
 // Configure session middleware
 app.use(
@@ -89,93 +54,91 @@ app.use((req, res, next) => {
   next();
 });
 
-// Auth middleware to extract user from session or Firebase token
-const requireAuth = (req, res, next) => {
-  if (req.user) {
-    return next();
-  }
-  res.status(401).json({ message: "Authentication required" });
-};
-
-// Role hierarchy for access control
-const roleHierarchy = ["GUEST", "USER", "ADMIN", "SUPERADMIN"];
-
-const requireRole = (roles) => (req, res, next) => {
-  if (!req.user || !req.user.role) {
-    return res.status(403).json({ message: "Insufficient permissions" });
-  }
-  // Find the highest required role index
-  const minRequiredIndex = Math.min(
-    ...roles.map((r) => roleHierarchy.indexOf(r)).filter((i) => i !== -1)
-  );
-  const userRoleIndex = roleHierarchy.indexOf(req.user.role.toUpperCase());
-  if (userRoleIndex === -1 || userRoleIndex < minRequiredIndex) {
-    return res.status(403).json({ message: "Insufficient permissions" });
+// Firebase authentication middleware
+// We'll use a simplified version for now
+app.use(async (req, res, next) => {
+  const token = req.headers.authorization?.split("Bearer ")?.[1];
+  if (token) {
+    try {
+      console.log(
+        "Auth token received, but Firebase admin not initialized in this simplified version"
+      );
+      // We'll set a mock user for testing
+      req.user = {
+        id: "test-user-id",
+        email: req.headers["x-user-email"] || "test@example.com",
+        role: "USER",
+      };
+    } catch (error) {
+      console.log("Auth error:", error.message);
+    }
   }
   next();
-};
+});
 
-// User routes
-app.get("/api/user/profile", requireAuth, async (req, res) => {
+// Simple user routes for testing
+app.get("/api/user/profile", async (req, res) => {
   try {
-    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
-    const user = await storage.getUser(req.user.id);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-    res.json(user);
+    // For testing, we'll return the user from req or a mock user
+    const user = req.user || {
+      id: "test-user-id",
+      email: "test@example.com",
+      displayName: "Test User",
+      role: "USER",
+    };
+
+    console.log("Returning user profile:", user);
+    return res.json(user);
   } catch (error) {
     console.error("Error fetching user profile:", error);
-    res.status(500).json({ message: "Internal server error" });
+    return res
+      .status(500)
+      .json({ message: "Error fetching user profile", error: error.message });
   }
 });
 
 app.post("/api/user/register", async (req, res) => {
   try {
-    console.log("Registration request body:", req.body);
-    console.log("User from token:", req.user);
+    const { email, displayName, photoURL, role } = req.body;
 
-    // Check if user already exists first
-    const existingUser = await storage.getUserByEmail(req.body.email);
-    if (existingUser) {
-      console.log("Existing user found:", existingUser.email);
-      // Don't store in session for serverless
-      return res.json(existingUser);
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
     }
 
-    // Validate the data against schema
-    const userData = insertUserSchema.parse(req.body);
-    const user = await storage.createUser(userData);
+    console.log("Registering user with email:", email);
 
-    console.log("New user created:", user.email);
-    res.status(201).json(user);
+    // Mock user registration
+    const user = {
+      id: "new-user-" + Date.now(),
+      email,
+      displayName: displayName || email.split("@")[0],
+      photoURL: photoURL || "",
+      role: role || "USER",
+      created: new Date().toISOString(),
+    };
+
+    console.log("User registered successfully:", user);
+    return res.status(201).json(user);
   } catch (error) {
-    console.error("Registration error:", error);
-    res
-      .status(400)
-      .json({ message: "Invalid user data", error: error.message });
+    console.error("Error registering user:", error);
+    return res
+      .status(500)
+      .json({ message: "Error registering user", error: error.message });
   }
 });
 
-app.post("/api/user/logout", (req, res) => {
-  req.session.destroy((err) => {
-    if (err) {
-      return res
-        .status(500)
-        .json({ message: "Could not log out, please try again." });
-    }
-    res.clearCookie("connect.sid");
-    res.status(200).json({ message: "Logged out successfully" });
-  });
+// Return 404 for unknown API routes
+app.use("/api/*", (req, res) => {
+  res.status(404).json({ message: "API endpoint not found" });
 });
 
 // Error handler
 app.use((err, req, res, next) => {
-  console.error(err);
+  console.error("Server error:", err);
   const status = err.status || err.statusCode || 500;
   const message = err.message || "Internal Server Error";
-  res.status(status).json({ message });
+  res.status(status).json({ message, error: err.toString() });
 });
 
 // Export the serverless handler
-export const handler = serverless(app);
+exports.handler = serverless(app);

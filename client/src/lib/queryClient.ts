@@ -1,5 +1,8 @@
+/** @format */
+
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import { UserRole } from "../../../shared/schema";
+import { auth } from "./firebase";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -11,9 +14,8 @@ async function throwIfResNotOk(res: Response) {
 export async function apiRequest(
   method: string,
   url: string,
-  data?: unknown | undefined,
+  data?: unknown | undefined
 ): Promise<Response> {
-  const { auth } = await import("./firebase");
   const user = auth.currentUser;
 
   // Guest user check
@@ -22,16 +24,21 @@ export async function apiRequest(
     if (guestUser.role === UserRole.enum.GUEST) {
       if (method !== "GET") {
         console.log("Guest user tried to make a non-GET request. Blocked.");
-        return new Response(JSON.stringify({ message: "Guest action blocked" }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ message: "Guest action blocked" }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
       }
     }
   }
 
-  const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
-  
+  const headers: Record<string, string> = data
+    ? { "Content-Type": "application/json" }
+    : {};
+
   // Add Firebase ID token if user is authenticated
   if (user) {
     const idToken = await user.getIdToken();
@@ -56,10 +63,9 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     const headers: Record<string, string> = {};
-    
+
     // Add Firebase ID token if user is authenticated
     try {
-      const { auth } = await import("./firebase");
       if (auth.currentUser) {
         const idToken = await auth.currentUser.getIdToken();
         headers["Authorization"] = `Bearer ${idToken}`;
