@@ -43,7 +43,23 @@ try {
   } else {
     console.log("[Dry run] Would execute: " + clientBuildCommand);
   }
-  // Step 3: Verify server.js exists
+
+  // Step 3: Verify Firebase service account key file was created
+  console.log("Checking Firebase service account key file...");
+  const serviceAccountPath = path.join(functionDir, "serviceAccountKey.json");
+  if (fs.existsSync(serviceAccountPath)) {
+    console.log("✅ Firebase service account key file found.");
+  } else if (process.env.FIREBASE_SERVICE_ACCOUNT_FILE_CREATED) {
+    console.log(
+      "✅ Firebase service account key file was created in this build process."
+    );
+  } else {
+    console.warn(
+      "⚠️ Firebase service account key file not found. Authentication may not work properly."
+    );
+  }
+
+  // Step 4: Verify server.js exists
   console.log("Verifying serverless function...");
   if (!fs.existsSync(serverJsPath)) {
     console.error("Error: server.js not found in netlify/functions/server/");
@@ -52,7 +68,7 @@ try {
     console.log("Server function verified at:", serverJsPath);
   }
 
-  // Step 4: Database setup notification
+  // Step 5: Database setup notification
   console.log("📊 Database Setup Information:");
   console.log("  ✅ Neon extension is installed");
   console.log("  ✅ NETLIFY_DATABASE_URL is configured");

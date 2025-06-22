@@ -6,6 +6,7 @@ server/public
 vite.config.ts.*
 *.tar.gz
 serviceAccountKey.json
+netlify/functions/server/serviceAccountKey.json
 # Local Netlify folder
 .netlify
 attached_assets/.obsidian/

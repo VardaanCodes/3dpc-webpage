@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "cross-env NODE_ENV=development tsx server/index.ts",
     "build": "vite build",
-    "build:netlify": "node scripts/check-firebase-config.js && cd netlify/functions/server && npm install && cd ../../../ && node deploy-netlify.js",
+    "build:netlify": "node scripts/check-firebase-config.js && node scripts/setup-firebase-key.js && cd netlify/functions/server && npm install && cd ../../../ && node deploy-netlify.js",
     "build:server": "tsx build-server.ts",
     "build:server:simple": "tsx build-server-simple.ts --simple",
     "preview": "vite preview",
