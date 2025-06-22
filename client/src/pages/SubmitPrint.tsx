@@ -1,3 +1,5 @@
+/** @format */
+
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -6,10 +8,30 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { FileUpload } from "@/components/FileUpload";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -47,16 +69,21 @@ export function SubmitPrint() {
     queryKey: ["/api/clubs/search", clubSearch],
     enabled: clubSearch.length > 0,
   });
-
   const submitMutation = useMutation({
-    mutationFn: async (data: SubmitPrintForm & { files: any[] }) => {
+    mutationFn: async (
+      data: Omit<SubmitPrintForm, "eventDeadline"> & {
+        eventDeadline?: Date;
+        files: any[];
+      }
+    ) => {
       const response = await apiRequest("POST", "/api/orders", data);
       return response.json();
     },
     onSuccess: () => {
       toast({
         title: "Print request submitted!",
-        description: "Your print request has been submitted and is awaiting approval.",
+        description:
+          "Your print request has been submitted and is awaiting approval.",
       });
       form.reset();
       setFiles([]);
@@ -70,7 +97,6 @@ export function SubmitPrint() {
       });
     },
   });
-
   const onSubmit = (data: SubmitPrintForm) => {
     if (files.length === 0) {
       toast({
@@ -81,20 +107,34 @@ export function SubmitPrint() {
       return;
     }
 
-    const fileMetadata = files.map(f => ({
+    const fileMetadata = files.map((f) => ({
       name: f.name,
       size: f.size,
       type: f.type,
     }));
 
-    submitMutation.mutate({ ...data, files: fileMetadata });
+    // Convert eventDeadline string to Date object if it exists
+    const formattedData = {
+      ...data,
+      eventDeadline: data.eventDeadline
+        ? new Date(data.eventDeadline)
+        : undefined,
+      files: fileMetadata,
+    };
+
+    submitMutation.mutate(formattedData);
   };
 
   return (
     <div className="space-y-8">
       <div className="mb-8">
-        <h2 className="text-3xl font-bold text-white mb-2">Submit a Print Request</h2>
-        <p className="text-gray-400">Fill out the form below to submit your 3D printing request to the queue.</p>
+        <h2 className="text-3xl font-bold text-white mb-2">
+          Submit a Print Request
+        </h2>
+        <p className="text-gray-400">
+          Fill out the form below to submit your 3D printing request to the
+          queue.
+        </p>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-8">
@@ -102,11 +142,16 @@ export function SubmitPrint() {
         <Card className="bg-slate-800 border-slate-700">
           <CardHeader>
             <CardTitle className="text-white">Print Request Details</CardTitle>
-            <CardDescription>Provide information about your print request</CardDescription>
+            <CardDescription>
+              Provide information about your print request
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="space-y-6"
+              >
                 {/* Club/Team Selection */}
                 <FormField
                   control={form.control}
@@ -145,7 +190,8 @@ export function SubmitPrint() {
                         </div>
                       </FormControl>
                       <FormDescription>
-                        If your club isn't listed, continue typing to add a new one
+                        If your club isn't listed, continue typing to add a new
+                        one
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -203,8 +249,13 @@ export function SubmitPrint() {
                     name="material"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-gray-300">Material</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormLabel className="text-gray-300">
+                          Material
+                        </FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger className="bg-slate-900 border-slate-600 text-white">
                               <SelectValue />
@@ -215,7 +266,9 @@ export function SubmitPrint() {
                             <SelectItem value="ABS">ABS</SelectItem>
                             <SelectItem value="PETG">PETG</SelectItem>
                             <SelectItem value="TPU">TPU</SelectItem>
-                            <SelectItem value="Custom">Custom (Provide own)</SelectItem>
+                            <SelectItem value="Custom">
+                              Custom (Provide own)
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -229,18 +282,25 @@ export function SubmitPrint() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className="text-gray-300">Color</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger className="bg-slate-900 border-slate-600 text-white">
                               <SelectValue />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="White">White (Default)</SelectItem>
+                            <SelectItem value="White">
+                              White (Default)
+                            </SelectItem>
                             <SelectItem value="Black">Black</SelectItem>
                             <SelectItem value="Red">Red</SelectItem>
                             <SelectItem value="Blue">Blue</SelectItem>
-                            <SelectItem value="Custom">Custom (Provide own)</SelectItem>
+                            <SelectItem value="Custom">
+                              Custom (Provide own)
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -268,7 +328,9 @@ export function SubmitPrint() {
                             I will provide my own filament
                           </FormLabel>
                           <FormDescription>
-                            Required for non-default material/color combinations. Must be delivered before printing begins.
+                            Required for non-default material/color
+                            combinations. Must be delivered before printing
+                            begins.
                           </FormDescription>
                         </div>
                       </div>
@@ -283,7 +345,9 @@ export function SubmitPrint() {
                   name="specialInstructions"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-gray-300">Special Instructions</FormLabel>
+                      <FormLabel className="text-gray-300">
+                        Special Instructions
+                      </FormLabel>
                       <FormControl>
                         <Textarea
                           placeholder="Any special requirements, infill percentage, support structures, etc."
@@ -304,7 +368,9 @@ export function SubmitPrint() {
                   disabled={submitMutation.isPending}
                 >
                   <Layers className="mr-2 h-4 w-4" />
-                  {submitMutation.isPending ? "Submitting..." : "Submit Print Request"}
+                  {submitMutation.isPending
+                    ? "Submitting..."
+                    : "Submit Print Request"}
                 </Button>
               </form>
             </Form>
@@ -316,7 +382,9 @@ export function SubmitPrint() {
           <Card className="bg-slate-800 border-slate-700">
             <CardHeader>
               <CardTitle className="text-white">Upload Files</CardTitle>
-              <CardDescription>Upload your 3D model files for printing</CardDescription>
+              <CardDescription>
+                Upload your 3D model files for printing
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <FileUpload onFilesChange={setFiles} />
