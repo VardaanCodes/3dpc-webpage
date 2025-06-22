@@ -36,12 +36,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [guestUser, setGuestUser] = useState<User | null>(null);
-
-  const { data: user, refetch: refetchUser } = useQuery<User>({
+  const { data: user, refetch: refetchUser, error: userError } = useQuery<User>({
     queryKey: ["/api/user/profile"],
     enabled: !!firebaseUser && !guestUser,
-    retry: false,
-  }); // Handle user registration when Firebase user is available but backend user is not
+    retry: (failureCount, error: any) => {
+      // Don't retry on 404 or 401 errors
+      if (error?.status === 404 || error?.status === 401) {
+        return false;
+      }
+      // Retry up to 3 times for other errors
+      return failureCount < 3;
+    },
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });// Handle user registration when Firebase user is available but backend user is not
   useEffect(() => {
     const userEmail = firebaseUser?.email || null;
 
@@ -71,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           AuthDebugger.log("Registration timeout", { userEmail });
           authStateManager.reset();
           authStateManager.setAuthenticating(false);
-        }, 10000); // 10 second timeout
+        }, 15000); // 15 second timeout
 
         try {
           const { registerUser } = await import("@/lib/auth");
@@ -79,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           AuthDebugger.log("User registration successful", { userEmail });
           clearTimeout(timeoutId);
           // Refetch user profile after successful registration
-          setTimeout(() => refetchUser(), 500);
+          setTimeout(() => refetchUser(), 1000);
         } catch (error) {
           clearTimeout(timeoutId);
           console.error("User registration failed:", error);
@@ -87,7 +96,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             userEmail,
             error: error instanceof Error ? error.message : error,
           });
-          // Reset state on error so user can try again
+          
+          // For specific errors, don't retry
+          if (error instanceof Error) {
+            if (error.message.includes('404') || error.message.includes('Network Error')) {
+              console.error("Critical registration error - not retrying:", error.message);
+              // Don't reset state to prevent retries
+              authStateManager.setAuthenticating(false);
+              return;
+            }
+          }
+          
+          // Reset state on other errors so user can try again
           authStateManager.reset();
         } finally {
           authStateManager.setAuthenticating(false);

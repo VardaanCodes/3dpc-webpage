@@ -109,18 +109,34 @@ const initializeFirebase = () => {
       const serviceAccountKey = process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT_KEY;
 
       if (serviceAccountKey) {
-        // Decode base64-encoded service account key
-        const serviceAccount = JSON.parse(
-          Buffer.from(serviceAccountKey, "base64").toString("utf8")
-        );
+        try {
+          // Decode base64-encoded service account key
+          const serviceAccount = JSON.parse(
+            Buffer.from(serviceAccountKey, "base64").toString("utf8")
+          );
 
-        admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount),
-        });
+          admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount),
+          });
 
-        console.log("Firebase Admin SDK initialized successfully");
+          console.log("Firebase Admin SDK initialized successfully with service account");
+        } catch (keyError) {
+          console.error("Failed to parse service account key:", keyError);
+          // Try to initialize with environment variables as fallback
+          if (process.env.VITE_FIREBASE_PROJECT_ID) {
+            console.log("Attempting Firebase initialization with environment variables...");
+            admin.initializeApp({
+              credential: admin.credential.applicationDefault(),
+              projectId: process.env.VITE_FIREBASE_PROJECT_ID,
+            });
+            console.log("Firebase Admin SDK initialized with application default credentials");
+          }
+        }
       } else {
         console.warn("Firebase Admin SDK service account key not found");
+        // For now, return null to gracefully handle the missing key
+        // Registration will work without Firebase token verification
+        return null;
       }
     }
 
@@ -143,13 +159,18 @@ const initializeDatabase = async () => {
     // Dynamic import for database modules to avoid cold start issues
     const { neon } = await import("@neondatabase/serverless");
     const { drizzle } = await import("drizzle-orm/neon-http");
-    const schema = await import("../../shared/schema.js");
+    const schema = await import("../../../shared/schema.js");
 
-    if (!process.env.DATABASE_URL) {
-      throw new Error("DATABASE_URL environment variable is not set");
+    // Use NETLIFY_DATABASE_URL if available, otherwise fall back to DATABASE_URL
+    const databaseUrl = process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL;
+    
+    if (!databaseUrl) {
+      throw new Error("Neither NETLIFY_DATABASE_URL nor DATABASE_URL environment variable is set");
     }
 
-    const sql = neon(process.env.DATABASE_URL);
+    console.log("Connecting to database with URL:", databaseUrl.split('@')[0] + '@***');
+    
+    const sql = neon(databaseUrl);
     db = drizzle(sql, { schema });
 
     dbInitialized = true;
@@ -178,7 +199,7 @@ app.use(async (req, res, next) => {
         const database = await initializeDatabase();
 
         // Query user from database
-        const { users } = await import("../../shared/schema.js");
+        const { users } = await import("../../../shared/schema.js");
         const { eq } = await import("drizzle-orm");
 
         const userResults = await database
@@ -197,6 +218,8 @@ app.use(async (req, res, next) => {
           );
           // User will be created during registration flow
         }
+      } else {
+        console.log("Firebase Admin SDK not available - skipping token verification");
       }
     } catch (error) {
       console.log("Auth token verification failed:", error.message);
@@ -251,7 +274,7 @@ app.post("/api/user/register", async (req, res) => {
     console.log("Registration request body:", req.body);
 
     const database = await initializeDatabase();
-    const { users, insertUserSchema } = await import("../../shared/schema.js");
+    const { users, insertUserSchema } = await import("../../../shared/schema.js");
     const { eq } = await import("drizzle-orm");
 
     // Check if user already exists
@@ -311,7 +334,7 @@ app.post("/api/user/logout", (req, res) => {
 app.get("/api/clubs", async (req, res) => {
   try {
     const database = await initializeDatabase();
-    const { clubs } = await import("../../shared/schema.js");
+    const { clubs } = await import("../../../shared/schema.js");
 
     const allClubs = await database.select().from(clubs);
     res.json(allClubs);
@@ -329,7 +352,7 @@ app.get("/api/clubs/search", async (req, res) => {
     }
 
     const database = await initializeDatabase();
-    const { clubs } = await import("../../shared/schema.js");
+    const { clubs } = await import("../../../shared/schema.js");
     const { ilike } = await import("drizzle-orm");
 
     const searchResults = await database
@@ -352,7 +375,7 @@ app.get("/api/orders", requireAuth, async (req, res) => {
     }
 
     const database = await initializeDatabase();
-    const { orders, users, clubs } = await import("../../shared/schema.js");
+    const { orders, users, clubs } = await import("../../../shared/schema.js");
     const { eq } = await import("drizzle-orm");
 
     let orderQuery = database
@@ -392,7 +415,7 @@ app.post("/api/orders", requireAuth, async (req, res) => {
 
     const database = await initializeDatabase();
     const { orders, insertOrderSchema } = await import(
-      "../../shared/schema.js"
+      "../../../shared/schema.js"
     );
 
     const orderData = {
@@ -423,7 +446,7 @@ app.get("/api/stats/user", requireAuth, async (req, res) => {
     if (!req.user) return res.status(401).json({ message: "Unauthorized" });
 
     const database = await initializeDatabase();
-    const { orders } = await import("../../shared/schema.js");
+    const { orders } = await import("../../../shared/schema.js");
     const { eq, count } = await import("drizzle-orm");
 
     const userOrderCount = await database

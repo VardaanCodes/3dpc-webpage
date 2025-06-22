@@ -8,15 +8,25 @@ import { isProduction, isNetlify, getEnvironmentInfo } from "./environment";
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     let errorText;
+    let errorData;
     try {
-      const errorData = await res.json();
+      errorData = await res.json();
       errorText = errorData.message || errorData.error || res.statusText;
     } catch {
       errorText = (await res.text()) || res.statusText;
     }
 
+    console.error(`API Error ${res.status}:`, errorText, {
+      url: res.url,
+      status: res.status,
+      statusText: res.statusText,
+      errorData
+    });
+
     const error = new Error(`${res.status}: ${errorText}`);
     (error as any).status = res.status;
+    (error as any).response = res;
+    (error as any).data = errorData;
     throw error;
   }
 }

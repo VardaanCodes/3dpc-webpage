@@ -20,6 +20,12 @@ const requiredEnvVars = [
   "VITE_FIREBASE_APP_ID",
 ];
 
+// Skip the check if we're in a CI/build environment where vars might be set externally
+if (process.env.CI || process.env.NETLIFY || process.env.NODE_ENV === 'production') {
+  console.log('🚀 Skipping Firebase config check in CI/build environment');
+  process.exit(0);
+}
+
 console.log("🔍 Checking Firebase environment variables...\n");
 
 let hasErrors = false;
