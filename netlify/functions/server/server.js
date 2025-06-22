@@ -1,6 +1,6 @@
 /** @format */
 
-// Enhanced Netlify serverless function with full backend integration
+// Production Netlify serverless function with full backend integration
 const express = require("express");
 const serverless = require("serverless-http");
 const session = require("express-session");
@@ -184,6 +184,203 @@ const initializeDatabase = async () => {
 
     const sql = neon(databaseUrl);
     db = drizzle(sql, { schema });
+
+    // Test database connectivity
+    console.log("Testing database connectivity...");
+    const connectivityTest = await sql`SELECT 1 as test`;
+    console.log("Database connectivity test result:", connectivityTest);
+
+    // Check and create tables if they don't exist
+    console.log("Checking and initializing database schema...");
+    const tablesNeeded = [
+      { name: "users", required: true },
+      { name: "clubs", required: true },
+      { name: "orders", required: true },
+      { name: "batches", required: true },
+      { name: "audit_logs", required: true },
+      { name: "system_config", required: true },
+    ];
+
+    let missingTables = [];
+
+    for (const table of tablesNeeded) {
+      try {
+        await sql`SELECT COUNT(*) FROM ${sql(table.name)} LIMIT 1`;
+        console.log(`✓ Table '${table.name}' exists`);
+      } catch (tableError) {
+        if (
+          tableError.message.includes(`relation "${table.name}" does not exist`)
+        ) {
+          console.log(`✗ Table '${table.name}' is missing`);
+          missingTables.push(table.name);
+        } else {
+          console.error(
+            `Error checking table '${table.name}':`,
+            tableError.message
+          );
+          missingTables.push(table.name);
+        }
+      }
+    }
+
+    // If tables are missing, run the migration SQL
+    if (missingTables.length > 0) {
+      console.log(`⚠️  Missing tables detected: ${missingTables.join(", ")}`);
+      console.log("Running database migrations...");
+
+      try {
+        // Execute the migration SQL
+        const migrationSQL = `
+          CREATE TABLE IF NOT EXISTS "audit_logs" (
+            "id" serial PRIMARY KEY NOT NULL,
+            "user_id" integer NOT NULL,
+            "action" text NOT NULL,
+            "entity_type" text NOT NULL,
+            "entity_id" text,
+            "details" jsonb DEFAULT '{}'::jsonb,
+            "reason" text,
+            "timestamp" timestamp DEFAULT now()
+          );
+
+          CREATE TABLE IF NOT EXISTS "batches" (
+            "id" serial PRIMARY KEY NOT NULL,
+            "batch_number" text NOT NULL,
+            "name" text,
+            "status" text DEFAULT 'created' NOT NULL,
+            "created_by_id" integer NOT NULL,
+            "started_at" timestamp,
+            "completed_at" timestamp,
+            "estimated_duration_hours" integer,
+            "created_at" timestamp DEFAULT now(),
+            CONSTRAINT "batches_batch_number_unique" UNIQUE("batch_number")
+          );
+
+          CREATE TABLE IF NOT EXISTS "clubs" (
+            "id" serial PRIMARY KEY NOT NULL,
+            "name" text NOT NULL,
+            "code" text NOT NULL,
+            "contact_email" text,
+            "is_active" boolean DEFAULT true,
+            "created_at" timestamp DEFAULT now(),
+            CONSTRAINT "clubs_name_unique" UNIQUE("name"),
+            CONSTRAINT "clubs_code_unique" UNIQUE("code")
+          );
+
+          CREATE TABLE IF NOT EXISTS "orders" (
+            "id" serial PRIMARY KEY NOT NULL,
+            "order_id" text NOT NULL,
+            "user_id" integer NOT NULL,
+            "club_id" integer,
+            "project_name" text NOT NULL,
+            "event_deadline" timestamp,
+            "material" text DEFAULT 'PLA',
+            "color" text DEFAULT 'White',
+            "providing_filament" boolean DEFAULT false,
+            "special_instructions" text,
+            "files" jsonb DEFAULT '[]'::jsonb,
+            "status" text DEFAULT 'submitted' NOT NULL,
+            "batch_id" integer,
+            "estimated_completion_time" timestamp,
+            "actual_completion_time" timestamp,
+            "failure_reason" text,
+            "cancellation_reason" text,
+            "submitted_at" timestamp DEFAULT now(),
+            "updated_at" timestamp DEFAULT now(),
+            CONSTRAINT "orders_order_id_unique" UNIQUE("order_id")
+          );
+
+          CREATE TABLE IF NOT EXISTS "system_config" (
+            "id" serial PRIMARY KEY NOT NULL,
+            "key" text NOT NULL,
+            "value" jsonb NOT NULL,
+            "description" text,
+            "updated_by" integer,
+            "updated_at" timestamp DEFAULT now(),
+            CONSTRAINT "system_config_key_unique" UNIQUE("key")
+          );
+
+          CREATE TABLE IF NOT EXISTS "users" (
+            "id" serial PRIMARY KEY NOT NULL,
+            "email" text NOT NULL,
+            "display_name" text NOT NULL,
+            "photo_url" text,
+            "role" text DEFAULT 'USER' NOT NULL,
+            "suspended" boolean DEFAULT false,
+            "file_uploads_used" integer DEFAULT 0,
+            "notification_preferences" jsonb DEFAULT '{}'::jsonb,
+            "last_login" timestamp,
+            "created_at" timestamp DEFAULT now(),
+            CONSTRAINT "users_email_unique" UNIQUE("email")
+          );
+
+          DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'audit_logs_user_id_users_id_fk') THEN
+              ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+            END IF;
+          END $$;
+
+          DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'batches_created_by_id_users_id_fk') THEN
+              ALTER TABLE "batches" ADD CONSTRAINT "batches_created_by_id_users_id_fk" FOREIGN KEY ("created_by_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+            END IF;
+          END $$;
+
+          DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'orders_user_id_users_id_fk') THEN
+              ALTER TABLE "orders" ADD CONSTRAINT "orders_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+            END IF;
+          END $$;
+
+          DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'orders_club_id_clubs_id_fk') THEN
+              ALTER TABLE "orders" ADD CONSTRAINT "orders_club_id_clubs_id_fk" FOREIGN KEY ("club_id") REFERENCES "public"."clubs"("id") ON DELETE no action ON UPDATE no action;
+            END IF;
+          END $$;
+
+          DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'orders_batch_id_batches_id_fk') THEN
+              ALTER TABLE "orders" ADD CONSTRAINT "orders_batch_id_batches_id_fk" FOREIGN KEY ("batch_id") REFERENCES "public"."batches"("id") ON DELETE no action ON UPDATE no action;
+            END IF;
+          END $$;
+
+          DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'system_config_updated_by_users_id_fk') THEN
+              ALTER TABLE "system_config" ADD CONSTRAINT "system_config_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+            END IF;
+          END $$;
+        `;
+
+        // Split and execute each statement
+        const statements = migrationSQL
+          .split(";")
+          .filter((stmt) => stmt.trim());
+        for (const statement of statements) {
+          if (statement.trim()) {
+            await sql.unsafe(statement.trim());
+          }
+        }
+
+        console.log("✅ Database migrations completed successfully!");
+
+        // Verify tables were created
+        for (const tableName of missingTables) {
+          try {
+            await sql`SELECT COUNT(*) FROM ${sql(tableName)} LIMIT 1`;
+            console.log(`✅ Table '${tableName}' created successfully`);
+          } catch (verifyError) {
+            console.error(
+              `❌ Failed to verify table '${tableName}':`,
+              verifyError.message
+            );
+          }
+        }
+      } catch (migrationError) {
+        console.error("❌ Migration failed:", migrationError);
+        console.warn("⚠️  Continuing with potentially uninitialized database");
+      }
+    } else {
+      console.log("✅ All required database tables exist");
+    }
 
     dbInitialized = true;
     console.log("Database connection initialized successfully");
@@ -604,13 +801,288 @@ app.get("/api/stats/user", requireAuth, async (req, res) => {
   }
 });
 
+// Database initialization endpoint (for admin use)
+app.post(
+  "/api/admin/init-db",
+  requireAuth,
+  requireRole(["ADMIN", "SUPERADMIN"]),
+  async (req, res) => {
+    try {
+      console.log(
+        "Manual database initialization requested by:",
+        req.user.email
+      );
+
+      const database = await initializeDatabase();
+      const { sql } = require("@neondatabase/serverless");
+      const dbUrl =
+        process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL;
+      const sqlClient = require("@neondatabase/serverless").neon(dbUrl);
+
+      // Check current database state
+      const initStatus = {
+        connectivity: false,
+        tables: {},
+        needsMigration: false,
+      };
+
+      // Test connectivity
+      try {
+        await sqlClient`SELECT 1 as test`;
+        initStatus.connectivity = true;
+      } catch (error) {
+        throw new Error(`Database connectivity failed: ${error.message}`);
+      }
+
+      // Check for each expected table
+      const expectedTables = [
+        "users",
+        "clubs",
+        "orders",
+        "batches",
+        "audit_logs",
+        "system_config",
+      ];
+
+      for (const tableName of expectedTables) {
+        try {
+          await sqlClient`SELECT COUNT(*) FROM ${sqlClient(tableName)} LIMIT 1`;
+          initStatus.tables[tableName] = "exists";
+        } catch (error) {
+          if (
+            error.message.includes(`relation "${tableName}" does not exist`)
+          ) {
+            initStatus.tables[tableName] = "missing";
+            initStatus.needsMigration = true;
+          } else {
+            initStatus.tables[tableName] = "error";
+          }
+        }
+      }
+
+      // Add audit log for this action
+      if (initStatus.tables.audit_logs === "exists") {
+        const { auditLogs } = require("./schema.js");
+        await database.insert(auditLogs).values({
+          userId: req.user.id,
+          action: "DB_INIT_CHECK",
+          entityType: "system",
+          details: {
+            requestedBy: req.user.email,
+            initStatus,
+            timestamp: new Date().toISOString(),
+          },
+          timestamp: new Date(),
+        });
+      }
+
+      res.json({
+        message: "Database initialization check completed",
+        status: initStatus,
+        recommendations: initStatus.needsMigration
+          ? [
+              "Run database migrations using: npm run db:migrate",
+              "Or use Drizzle Kit: npx drizzle-kit push",
+              "Check your drizzle.config.ts configuration",
+            ]
+          : [
+              "Database schema is properly initialized",
+              "All expected tables are present",
+            ],
+      });
+    } catch (error) {
+      console.error("Database initialization check failed:", error);
+      res.status(500).json({
+        message: "Database initialization check failed",
+        error: error.message,
+        troubleshooting: [
+          "Verify NETLIFY_DATABASE_URL or DATABASE_URL is set correctly",
+          "Check if the Neon database exists and is accessible",
+          "Ensure database migrations have been run",
+          "Check Netlify function logs for detailed error information",
+        ],
+      });
+    }
+  }
+);
+
+// Manual database initialization endpoint (for testing and verification)
+app.get("/api/admin/init-db-test", async (req, res) => {
+  try {
+    console.log("Manual database initialization test requested");
+
+    const database = await initializeDatabase();
+    const { neon } = require("@neondatabase/serverless");
+    const dbUrl = process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL;
+    const sqlClient = neon(dbUrl);
+
+    // Test connectivity and schema
+    const testResults = {
+      connectivity: false,
+      tables: {},
+      environment: {
+        NODE_ENV: process.env.NODE_ENV || "unknown",
+        hasNetlifyUrl: !!process.env.NETLIFY_DATABASE_URL,
+        hasDatabaseUrl: !!process.env.DATABASE_URL,
+        databaseHost: dbUrl ? dbUrl.split("@")[1]?.split("/")[0] : "unknown",
+      },
+    };
+
+    // Test connectivity
+    try {
+      const connectTest = await sqlClient`SELECT 1 as test, NOW() as timestamp`;
+      testResults.connectivity = true;
+      testResults.connectionTest = connectTest[0];
+    } catch (error) {
+      throw new Error(`Database connectivity failed: ${error.message}`);
+    }
+
+    // Check for each expected table
+    const expectedTables = [
+      "users",
+      "clubs",
+      "orders",
+      "batches",
+      "audit_logs",
+      "system_config",
+    ];
+
+    for (const tableName of expectedTables) {
+      try {
+        const countResult =
+          await sqlClient`SELECT COUNT(*) as count FROM ${sqlClient(
+            tableName
+          )}`;
+        testResults.tables[tableName] = {
+          exists: true,
+          rowCount: parseInt(countResult[0].count),
+        };
+      } catch (error) {
+        if (error.message.includes(`relation "${tableName}" does not exist`)) {
+          testResults.tables[tableName] = {
+            exists: false,
+            error: "Table does not exist",
+          };
+        } else {
+          testResults.tables[tableName] = {
+            exists: false,
+            error: error.message,
+          };
+        }
+      }
+    }
+
+    // Check if we need sample data
+    try {
+      const userCount = await sqlClient`SELECT COUNT(*) as count FROM users`;
+      testResults.needsSampleData = parseInt(userCount[0].count) === 0;
+    } catch (error) {
+      testResults.needsSampleData = true;
+    }
+
+    res.json({
+      message: "Database initialization test completed",
+      status: "success",
+      results: testResults,
+      recommendations: Object.values(testResults.tables).some((t) => !t.exists)
+        ? [
+            "Some tables are missing - they should be created automatically on the next API call",
+            "If tables are still missing, check Netlify function logs for errors",
+            "Verify that NETLIFY_DATABASE_URL points to a valid Neon database",
+          ]
+        : [
+            "Database schema is properly initialized",
+            "All expected tables are present",
+            testResults.needsSampleData
+              ? "Consider adding sample data for testing"
+              : "Database contains data",
+          ],
+    });
+  } catch (error) {
+    console.error("Database initialization test failed:", error);
+    res.status(500).json({
+      message: "Database initialization test failed",
+      error: error.message,
+      troubleshooting: [
+        "Verify NETLIFY_DATABASE_URL or DATABASE_URL is set correctly",
+        "Check if the Neon database exists and is accessible",
+        "Review Netlify function logs for detailed error information",
+        "Ensure the database user has sufficient permissions",
+      ],
+    });
+  }
+});
+
 // Health check endpoint
-app.get("/api/health", (req, res) => {
-  res.json({
-    status: "ok",
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || "development",
-  });
+app.get("/api/health", async (req, res) => {
+  try {
+    const healthData = {
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || "development",
+      services: {},
+    };
+
+    // Test database connectivity
+    try {
+      const database = await initializeDatabase();
+      const { sql } = require("@neondatabase/serverless");
+      const dbUrl =
+        process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL;
+      const sqlClient = require("@neondatabase/serverless").neon(dbUrl);
+
+      await sqlClient`SELECT 1 as test`;
+      healthData.services.database = { status: "connected", provider: "neon" };
+
+      // Check if core tables exist
+      try {
+        await sqlClient`SELECT COUNT(*) FROM users LIMIT 1`;
+        healthData.services.database.schema = "initialized";
+      } catch (schemaError) {
+        if (schemaError.message.includes('relation "users" does not exist')) {
+          healthData.services.database.schema = "not_initialized";
+          healthData.services.database.warning =
+            "Database tables do not exist - run migrations";
+        } else {
+          healthData.services.database.schema = "error";
+          healthData.services.database.error = schemaError.message;
+        }
+      }
+    } catch (dbError) {
+      healthData.services.database = {
+        status: "error",
+        error: dbError.message,
+        provider: "neon",
+      };
+    }
+
+    // Test Firebase connectivity (if configured)
+    try {
+      const firebaseAdmin = initializeFirebase();
+      if (firebaseAdmin) {
+        healthData.services.firebase = {
+          status: "configured",
+          provider: "firebase_admin",
+        };
+      } else {
+        healthData.services.firebase = { status: "not_configured" };
+      }
+    } catch (firebaseError) {
+      healthData.services.firebase = {
+        status: "error",
+        error: firebaseError.message,
+      };
+    }
+
+    res.json(healthData);
+  } catch (error) {
+    console.error("Health check error:", error);
+    res.status(500).json({
+      status: "error",
+      timestamp: new Date().toISOString(),
+      error: error.message,
+    });
+  }
 });
 
 // Return 404 for unknown API routes

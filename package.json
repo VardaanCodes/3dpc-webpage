@@ -18,6 +18,7 @@
     "db:migrate": "tsx scripts/migrate-db.ts",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
+    "db:test": "node test-db-connection.js",
     "db:migrate-from-firestore": "tsx scripts/migrate-firestore-to-postgres.ts"
   },
   "dependencies": {
