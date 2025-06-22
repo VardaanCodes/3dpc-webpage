@@ -1,6 +1,6 @@
 /** @format */
 
-import { User, Club, Order, AuditLog, SystemConfig } from "../shared/schema";
+import { User, Club, Order, AuditLog, SystemConfig } from "../../shared/schema";
 
 /**
  * Interface for storage operations across the application

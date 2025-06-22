@@ -3,7 +3,37 @@
 import { eq, and, desc, sql } from "drizzle-orm";
 import { db } from "../db";
 import { orders, clubs } from "../../shared/schema";
-import type { Order, InsertOrder } from "../storage";
+
+// Define Json type consistent with other repositories
+type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
+
+// Define Order type with correct typing
+export type Order = {
+  id: number;
+  orderId: string;
+  userId: number;
+  clubId: number | null;
+  projectName: string;
+  eventDeadline: Date | null;
+  material: string | null;
+  color: string | null;
+  providingFilament: boolean | null;
+  specialInstructions: string | null;
+  files: Json;
+  status: string;
+  batchId: number | null;
+  estimatedCompletionTime: Date | null;
+  actualCompletionTime: Date | null;
+  failureReason: string | null;
+  cancellationReason: string | null;
+  submittedAt: Date | null;
+  updatedAt: Date | null;
+};
+
+export type InsertOrder = Omit<
+  Order,
+  "id" | "orderId" | "submittedAt" | "updatedAt"
+>;
 
 /**
  * Repository for order-related database operations
@@ -20,7 +50,14 @@ export class OrdersRepository {
       .from(orders)
       .where(eq(orders.id, id))
       .limit(1);
-    return results[0];
+
+    if (results.length === 0) return undefined;
+
+    // Cast unknown files to Json
+    return {
+      ...results[0],
+      files: results[0].files as Json,
+    };
   }
 
   /**
@@ -29,11 +66,17 @@ export class OrdersRepository {
    * @returns Array of orders
    */
   async getByUserId(userId: number): Promise<Order[]> {
-    return await db
+    const results = await db
       .select()
       .from(orders)
       .where(eq(orders.userId, userId))
       .orderBy(desc(orders.submittedAt));
+
+    // Cast unknown files to Json in each result
+    return results.map((order) => ({
+      ...order,
+      files: order.files as Json,
+    }));
   }
 
   /**
@@ -42,11 +85,17 @@ export class OrdersRepository {
    * @returns Array of orders
    */
   async getByClubId(clubId: number): Promise<Order[]> {
-    return await db
+    const results = await db
       .select()
       .from(orders)
       .where(eq(orders.clubId, clubId))
       .orderBy(desc(orders.submittedAt));
+
+    // Cast unknown files to Json in each result
+    return results.map((order) => ({
+      ...order,
+      files: order.files as Json,
+    }));
   }
 
   /**
@@ -55,11 +104,17 @@ export class OrdersRepository {
    * @returns Array of orders
    */
   async getByStatus(status: string): Promise<Order[]> {
-    return await db
+    const results = await db
       .select()
       .from(orders)
       .where(eq(orders.status, status))
       .orderBy(desc(orders.submittedAt));
+
+    // Cast unknown files to Json in each result
+    return results.map((order) => ({
+      ...order,
+      files: order.files as Json,
+    }));
   }
   /**
    * Create a new order
@@ -120,9 +175,13 @@ export class OrdersRepository {
       submittedAt: new Date(),
       updatedAt: new Date(),
     };
-
     const results = await db.insert(orders).values(orderWithId).returning();
-    return results[0];
+
+    // Cast unknown files to Json
+    return {
+      ...results[0],
+      files: results[0].files as Json,
+    };
   }
 
   /**
@@ -143,12 +202,14 @@ export class OrdersRepository {
       .set(updatedOrder)
       .where(eq(orders.id, id))
       .returning();
-
     if (results.length === 0) {
       throw new Error(`Order with ID ${id} not found`);
     }
 
-    return results[0];
+    return {
+      ...results[0],
+      files: results[0].files as Json,
+    };
   }
 
   /**
@@ -176,14 +237,29 @@ export class OrdersRepository {
       .from(orders)
       .where(eq(orders.orderId, orderId))
       .limit(1);
-    return results[0];
+
+    if (results.length === 0) return undefined;
+
+    // Cast unknown files to Json
+    return {
+      ...results[0],
+      files: results[0].files as Json,
+    };
   }
 
   /**
    * Get all orders
    * @returns Array of all orders
-   */
-  async getAll(): Promise<Order[]> {
-    return await db.select().from(orders).orderBy(desc(orders.submittedAt));
+   */ async getAll(): Promise<Order[]> {
+    const results = await db
+      .select()
+      .from(orders)
+      .orderBy(desc(orders.submittedAt));
+
+    // Cast unknown files to Json in each result
+    return results.map((order) => ({
+      ...order,
+      files: order.files as Json,
+    }));
   }
 }

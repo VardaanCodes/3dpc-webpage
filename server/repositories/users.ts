@@ -3,7 +3,25 @@
 import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { users } from "../../shared/schema";
-import type { User, InsertUser } from "../storage";
+
+// Define Json type consistent with system repository
+type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
+
+// Define User type with correct Json typing
+export type User = {
+  id: number;
+  email: string;
+  displayName: string;
+  photoURL: string | null;
+  role: string;
+  suspended: boolean | null;
+  fileUploadsUsed: number | null;
+  notificationPreferences: Json;
+  lastLogin: Date | null;
+  createdAt: Date | null;
+};
+
+export type InsertUser = Omit<User, "id" | "createdAt">;
 
 /**
  * Repository for user-related database operations
@@ -20,7 +38,14 @@ export class UsersRepository {
       .from(users)
       .where(eq(users.id, id))
       .limit(1);
-    return results[0];
+
+    if (results.length === 0) return undefined;
+
+    // Cast the unknown type to Json
+    return {
+      ...results[0],
+      notificationPreferences: results[0].notificationPreferences as Json,
+    };
   }
 
   /**
@@ -34,7 +59,14 @@ export class UsersRepository {
       .from(users)
       .where(eq(users.email, email))
       .limit(1);
-    return results[0];
+
+    if (results.length === 0) return undefined;
+
+    // Cast the unknown type to Json
+    return {
+      ...results[0],
+      notificationPreferences: results[0].notificationPreferences as Json,
+    };
   }
 
   /**
@@ -44,7 +76,12 @@ export class UsersRepository {
    */
   async create(userData: Omit<User, "id" | "createdAt">): Promise<User> {
     const results = await db.insert(users).values(userData).returning();
-    return results[0];
+
+    // Cast the unknown type to Json
+    return {
+      ...results[0],
+      notificationPreferences: results[0].notificationPreferences as Json,
+    };
   }
 
   /**
@@ -64,7 +101,11 @@ export class UsersRepository {
       throw new Error(`User with ID ${id} not found`);
     }
 
-    return results[0];
+    // Cast the unknown type to Json
+    return {
+      ...results[0],
+      notificationPreferences: results[0].notificationPreferences as Json,
+    };
   }
 
   /**
@@ -79,5 +120,17 @@ export class UsersRepository {
       .returning({ id: users.id });
 
     return result.length > 0;
+  }
+
+  /**
+   * Get all users
+   * @returns Array of all users
+   */
+  async getAll(): Promise<User[]> {
+    const results = await db.select().from(users).orderBy(users.createdAt);
+    return results.map((user) => ({
+      ...user,
+      notificationPreferences: user.notificationPreferences as Json,
+    }));
   }
 }

@@ -64,10 +64,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log("Existing user found:", existingUser.email);
         // Don't store in session for serverless
         return res.json(existingUser);
-      }
-
-      // Validate the data against schema
-      const userData = insertUserSchema.parse(req.body);
+      } // Validate the data against schema
+      const userData = {
+        ...insertUserSchema.parse(req.body),
+        lastLogin: null, // Add the required lastLogin field
+        photoURL: req.body.photoURL || null, // Convert undefined to null
+        role: req.body.role || "USER", // Set default role if undefined
+        suspended: req.body.suspended ?? false, // Convert undefined to false
+        fileUploadsUsed: req.body.fileUploadsUsed ?? 0, // Convert undefined to 0
+        notificationPreferences: req.body.notificationPreferences || null, // Convert undefined to null
+      };
       const user = await storage.createUser(userData);
 
       console.log("New user created:", user.email);
@@ -209,6 +215,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         entityType: "order",
         entityId: order.id.toString(),
         details: { orderId: order.orderId, projectName: order.projectName },
+        reason: null,
       });
 
       res.status(201).json(order);
@@ -259,15 +266,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: "Invalid order status" });
         }
 
-        const order = await storage.updateOrder(orderId, { status });
-
-        // Create audit log
+        const order = await storage.updateOrder(orderId, { status }); // Create audit log
         await storage.createAuditLog({
           userId: req.user.id,
           action: "order_status_updated",
           entityType: "order",
           entityId: orderId.toString(),
           details: { status },
+          reason: null,
         });
 
         res.json(order);
@@ -304,15 +310,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           createdById: req.user.id,
         });
 
-        const batch = await storage.createBatch(batchData);
-
-        // Create audit log
+        const batch = await storage.createBatch(batchData); // Create audit log
         await storage.createAuditLog({
           userId: req.user.id,
           action: "batch_created",
           entityType: "batch",
           entityId: batch.id.toString(),
           details: { batchNumber: batch.batchNumber, name: batch.name },
+          reason: null,
         });
 
         res.status(201).json(batch);
@@ -332,15 +337,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const batchId = parseInt(req.params.id);
         const updates = req.body;
 
-        const batch = await storage.updateBatch(batchId, updates);
-
-        // Create audit log
+        const batch = await storage.updateBatch(batchId, updates); // Create audit log
         await storage.createAuditLog({
           userId: req.user.id,
           action: "batch_updated",
           entityType: "batch",
           entityId: batchId.toString(),
           details: updates,
+          reason: null,
         });
 
         res.json(batch);
@@ -393,15 +397,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const userId = parseInt(req.params.id);
         const updates = req.body;
 
-        const user = await storage.updateUser(userId, updates);
-
-        // Create audit log
+        const user = await storage.updateUser(userId, updates); // Create audit log
         await storage.createAuditLog({
           userId: req.user.id,
           action: "user_updated",
           entityType: "user",
           entityId: userId.toString(),
           details: updates,
+          reason: null,
         });
 
         res.json(user);
@@ -521,15 +524,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const configData = req.body;
 
         // Create or update config
-        const config = await storage.setSystemConfig(configData);
-
-        // Create audit log
+        const config = await storage.setSystemConfig(configData); // Create audit log
         await storage.createAuditLog({
           userId: req.user.id,
           action: "system_config_updated",
           entityType: "system_config",
           entityId: config.key,
           details: configData,
+          reason: null,
         });
 
         res.status(201).json(config);

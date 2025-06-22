@@ -104,7 +104,7 @@ export class FilesRepository {
     const metadata = result.metadata as any;
 
     return {
-      data: result.data as Blob,
+      data: result.data as unknown as Blob,
       metadata: {
         ...metadata,
         createdAt: new Date(metadata.createdAt),

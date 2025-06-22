@@ -11,37 +11,50 @@ import { FilesRepository } from "../repositories/files";
 import * as schema from "../../shared/schema";
 import { z } from "zod";
 
-// Create a select schema for orders
+// Define Json type compatible with all repositories
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json }
+  | Json[];
+
+// Create a select schema for orders that matches the IStorage interface
 const selectOrderSchema = z.object({
   id: z.number(),
   orderId: z.string(),
   userId: z.number(),
-  clubId: z.number().optional().nullable(),
+  clubId: z.number().nullable(),
   projectName: z.string(),
-  eventDeadline: z.date().optional().nullable(),
-  material: z.string().optional().nullable(),
-  color: z.string().optional().nullable(),
-  providingFilament: z.boolean().optional().nullable(),
-  specialInstructions: z.string().optional().nullable(),
-  files: z.any().optional(),
+  eventDeadline: z.date().nullable(),
+  material: z.string().nullable(),
+  color: z.string().nullable(),
+  providingFilament: z.boolean().nullable(),
+  specialInstructions: z.string().nullable(),
+  files: z.custom<Json>().nullable(),
   status: z.string(),
-  batchId: z.number().optional().nullable(),
-  estimatedCompletionTime: z.date().optional().nullable(),
-  actualCompletionTime: z.date().optional().nullable(),
-  failureReason: z.string().optional().nullable(),
-  cancellationReason: z.string().optional().nullable(),
-  submittedAt: z.date().optional(),
-  updatedAt: z.date().optional(),
+  batchId: z.number().nullable(),
+  estimatedCompletionTime: z.date().nullable(),
+  actualCompletionTime: z.date().nullable(),
+  failureReason: z.string().nullable(),
+  cancellationReason: z.string().nullable(),
+  submittedAt: z.date().nullable(),
+  updatedAt: z.date().nullable(),
 });
 
 // Types
-export type User = z.infer<typeof schema.selectUserSchema>;
+export type User = z.infer<typeof schema.selectUserSchema> & {
+  notificationPreferences: Json;
+};
 export type InsertUser = z.infer<typeof schema.insertUserSchema>;
 export type InsertClub = z.infer<typeof schema.insertClubSchema>;
 export type Order = z.infer<typeof selectOrderSchema>;
 export type InsertOrder = z.infer<typeof schema.insertOrderSchema>;
 export type InsertBatch = z.infer<typeof schema.insertBatchSchema>;
-export type InsertAuditLog = z.infer<typeof schema.insertAuditLogSchema>;
+export type InsertAuditLog = z.infer<typeof schema.insertAuditLogSchema> & {
+  reason?: string | null;
+};
 export type InsertSystemConfig = z.infer<
   typeof schema.insertSystemConfigSchema
 >;
@@ -69,8 +82,9 @@ export class RepositoryStorage implements IStorage {
   }
 
   // Helper function to safely convert nullable values to undefined for compatibility
+  // and ensure correct type handling
   private convertNullToUndefined<T>(obj: T): T {
-    if (obj === null || obj === undefined) {
+    if (obj === null) {
       return undefined as any;
     }
 
@@ -91,28 +105,97 @@ export class RepositoryStorage implements IStorage {
     return result;
   }
 
+  // Type casting helper for JSON fields
+  private ensureJsonType(data: unknown): Json {
+    if (data === null || data === undefined) {
+      return null;
+    }
+
+    // Simple JSON type validation/conversion
+    if (
+      typeof data === "string" ||
+      typeof data === "number" ||
+      typeof data === "boolean" ||
+      data === null
+    ) {
+      return data;
+    }
+
+    // For objects/arrays
+    return JSON.parse(JSON.stringify(data)) as Json;
+  }
   // User operations
   async getUser(id: number): Promise<User | undefined> {
-    return this.usersRepo.getById(id);
+    const user = await this.usersRepo.getById(id);
+    if (!user) return undefined;
+
+    // Ensure notificationPreferences is correctly typed
+    return {
+      ...user,
+      notificationPreferences: this.ensureJsonType(
+        user.notificationPreferences
+      ),
+    };
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    return this.usersRepo.getByEmail(email);
+    const user = await this.usersRepo.getByEmail(email);
+    if (!user) return undefined;
+
+    // Ensure notificationPreferences is correctly typed
+    return {
+      ...user,
+      notificationPreferences: this.ensureJsonType(
+        user.notificationPreferences
+      ),
+    };
   }
 
-  async createUser(user: InsertUser): Promise<User> {
+  async createUser(user: Omit<User, "id" | "createdAt">): Promise<User> {
     // Convert any null values to undefined to match repository expectations
     const safeUser = this.convertNullToUndefined(user);
     // Ensure lastLogin is included as required by the repository
     if (!("lastLogin" in safeUser)) {
       (safeUser as any).lastLogin = undefined;
     }
-    return this.usersRepo.create(safeUser as any);
-  }
-  async updateUser(id: number, updates: Partial<User>): Promise<User> {
-    return this.usersRepo.update(id, this.convertNullToUndefined(updates));
+
+    const createdUser = await this.usersRepo.create(safeUser as any);
+
+    // Ensure notificationPreferences is correctly typed
+    return {
+      ...createdUser,
+      notificationPreferences: this.ensureJsonType(
+        createdUser.notificationPreferences
+      ),
+    };
   }
 
+  async updateUser(id: number, updates: Partial<User>): Promise<User> {
+    const updatedUser = await this.usersRepo.update(
+      id,
+      this.convertNullToUndefined(updates)
+    );
+
+    // Ensure notificationPreferences is correctly typed
+    return {
+      ...updatedUser,
+      notificationPreferences: this.ensureJsonType(
+        updatedUser.notificationPreferences
+      ),
+    };
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    const users = await this.usersRepo.getAll();
+
+    // Ensure notificationPreferences is correctly typed for all users
+    return users.map((user) => ({
+      ...user,
+      notificationPreferences: this.ensureJsonType(
+        user.notificationPreferences
+      ),
+    }));
+  }
   // Club operations
   async getAllClubs(): Promise<Club[]> {
     return this.clubsRepo.getAll();
@@ -126,56 +209,97 @@ export class RepositoryStorage implements IStorage {
     return this.clubsRepo.getByCode(code);
   }
 
-  async createClub(club: InsertClub): Promise<Club> {
+  async createClub(club: Omit<Club, "id" | "createdAt">): Promise<Club> {
     return this.clubsRepo.create(this.convertNullToUndefined(club) as any);
   }
 
   async searchClubs(query: string): Promise<Club[]> {
     return this.clubsRepo.search(query);
   }
-  // Missing method required by IStorage interface
+
+  // Required by IStorage interface
   async updateClub(id: number, updates: Partial<Club>): Promise<Club> {
     return this.clubsRepo.update(id, this.convertNullToUndefined(updates));
   }
-
   // Order operations
   async getOrder(id: number): Promise<Order | undefined> {
-    return this.ordersRepo.getById(id);
+    const order = await this.ordersRepo.getById(id);
+    if (!order) return undefined;
+
+    // Process and return a properly-typed order
+    return this.processOrderResult(order);
   }
+
   async getOrderByOrderId(orderId: string): Promise<Order | undefined> {
-    // Now we can use the new method from OrdersRepository
-    return this.ordersRepo.getByOrderId(orderId);
+    const order = await this.ordersRepo.getByOrderId(orderId);
+    if (!order) return undefined;
+
+    // Process and return a properly-typed order
+    return this.processOrderResult(order);
   }
 
   async getUserOrders(userId: number): Promise<Order[]> {
-    return this.ordersRepo.getByUserId(userId);
+    const orders = await this.ordersRepo.getByUserId(userId);
+    return orders.map((order) => this.processOrderResult(order));
   }
 
   // Required by IStorage
   async getOrdersByUser(userId: number): Promise<Order[]> {
-    return this.ordersRepo.getByUserId(userId);
+    const orders = await this.ordersRepo.getByUserId(userId);
+    return orders.map((order) => this.processOrderResult(order));
   }
 
   // Required by IStorage
   async getOrdersByClub(clubId: number): Promise<Order[]> {
-    return this.ordersRepo.getByClubId(clubId);
+    const orders = await this.ordersRepo.getByClubId(clubId);
+    return orders.map((order) => this.processOrderResult(order));
   }
 
   async getAllOrders(): Promise<Order[]> {
     // Now we can use the new getAll method
-    return this.ordersRepo.getAll();
+    const orders = await this.ordersRepo.getAll();
+    return orders.map((order) => this.processOrderResult(order));
   }
 
   async getOrdersByStatus(status: string): Promise<Order[]> {
-    return this.ordersRepo.getByStatus(status);
+    const orders = await this.ordersRepo.getByStatus(status);
+    return orders.map((order) => this.processOrderResult(order));
   }
-
   async createOrder(order: InsertOrder): Promise<Order> {
-    return this.ordersRepo.create(this.convertNullToUndefined(order) as any);
+    const processedOrder = await this.ordersRepo.create(
+      this.convertNullToUndefined(order) as any
+    );
+    return this.processOrderResult(processedOrder);
   }
 
   async updateOrder(id: number, updates: Partial<Order>): Promise<Order> {
-    return this.ordersRepo.update(id, this.convertNullToUndefined(updates));
+    const processedOrder = await this.ordersRepo.update(
+      id,
+      this.convertNullToUndefined(updates)
+    );
+    return this.processOrderResult(processedOrder);
+  }
+
+  // Helper method to process order results and ensure correct typing
+  private processOrderResult(order: any): Order {
+    return {
+      ...order,
+      clubId: order.clubId === undefined ? null : order.clubId,
+      files: this.ensureJsonType(order.files),
+      eventDeadline: order.eventDeadline || null,
+      material: order.material || null,
+      color: order.color || null,
+      providingFilament:
+        order.providingFilament === undefined ? null : order.providingFilament,
+      specialInstructions: order.specialInstructions || null,
+      batchId: order.batchId || null,
+      estimatedCompletionTime: order.estimatedCompletionTime || null,
+      actualCompletionTime: order.actualCompletionTime || null,
+      failureReason: order.failureReason || null,
+      cancellationReason: order.cancellationReason || null,
+      submittedAt: order.submittedAt || null,
+      updatedAt: order.updatedAt || null,
+    };
   }
   // Batch operations
   async getBatch(id: number): Promise<Batch | undefined> {
@@ -205,39 +329,83 @@ export class RepositoryStorage implements IStorage {
     // Assuming method is update like other repos
     return this.batchesRepo.update(id, this.convertNullToUndefined(updates));
   }
-
   // Audit log operations
-  async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
-    // Assuming method is create like other repos
-    return this.auditLogsRepo.create(this.convertNullToUndefined(log) as any);
-  }
-  async getAuditLogs(filters?: {
-    userId?: number;
-    entityType?: string;
-    action?: string;
-  }): Promise<AuditLog[]> {
-    // Using getFiltered which is available in AuditLogsRepository
-    return this.auditLogsRepo.getFiltered(
-      this.convertNullToUndefined(filters || {})
-    );
-  }
+  async createAuditLog(
+    log: Omit<AuditLog, "id" | "timestamp">
+  ): Promise<AuditLog> {
+    // Ensure we have a reason field (can be null)
+    const safeLog = {
+      ...this.convertNullToUndefined(log),
+      reason: log.reason || null,
+      details: this.ensureJsonType(log.details),
+    };
 
+    const result = await this.auditLogsRepo.create(safeLog as any);
+
+    return {
+      ...result,
+      details: this.ensureJsonType(result.details),
+    };
+  }
+  async getAuditLogs(
+    filters?: Partial<AuditLog>,
+    limit?: number
+  ): Promise<AuditLog[]> {
+    // Using getFiltered which is available in AuditLogsRepository
+    // Convert filters to the format expected by the repository
+    const safeFilters = filters
+      ? {
+          userId: filters.userId,
+          action: filters.action,
+          entityType: filters.entityType,
+          entityId: filters.entityId || undefined, // Convert null to undefined
+          // Any other filters needed
+        }
+      : {};
+
+    const logs = await this.auditLogsRepo.getFiltered(
+      this.convertNullToUndefined(safeFilters),
+      limit
+    );
+
+    return logs.map((log) => ({
+      ...log,
+      details: this.ensureJsonType(log.details),
+    }));
+  }
   // System config operations
   async getSystemConfig(key: string): Promise<SystemConfig | undefined> {
-    return this.systemRepo.getByKey(key);
+    const config = await this.systemRepo.getByKey(key);
+    if (!config) return undefined;
+
+    return {
+      ...config,
+      value: this.ensureJsonType(config.value),
+    };
   }
+
   async setSystemConfig(config: InsertSystemConfig): Promise<SystemConfig> {
     const safeConfig = this.convertNullToUndefined(config);
-    return this.systemRepo.set(
+    const result = await this.systemRepo.set(
       safeConfig.key,
-      safeConfig.value,
+      this.ensureJsonType(safeConfig.value),
       safeConfig.updatedBy || 0,
       safeConfig.description as string | undefined
     );
+
+    return {
+      ...result,
+      value: this.ensureJsonType(result.value),
+    };
   }
 
   async getAllSystemConfig(): Promise<SystemConfig[]> {
-    return this.systemRepo.getAll();
+    const configs = await this.systemRepo.getAll();
+
+    return configs.map((config) => ({
+      ...config,
+      value: this.ensureJsonType(config.value),
+    }));
   }
 
   // Required by IStorage interface
@@ -247,7 +415,16 @@ export class RepositoryStorage implements IStorage {
     updatedBy: number
   ): Promise<SystemConfig> {
     // Using the set method since it handles both creation and updates
-    return this.systemRepo.set(key, value, updatedBy);
+    const result = await this.systemRepo.set(
+      key,
+      this.ensureJsonType(value),
+      updatedBy
+    );
+
+    return {
+      ...result,
+      value: this.ensureJsonType(result.value),
+    };
   }
 
   // File operations - these are not in the IStorage interface yet, but we can add them

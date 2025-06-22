@@ -1,6 +1,6 @@
 /** @format */
 
-import express from "express";
+import express, { Request, Response, NextFunction } from "express";
 import multer from "multer";
 import { netlifyBlobsService } from "../netlifyBlobs";
 import { FilesRepository } from "../repositories/files";
@@ -41,7 +41,11 @@ const upload = multer({
 });
 
 // Verify authentication middleware
-const authenticateUser = async (req, res, next) => {
+const authenticateUser = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -50,9 +54,26 @@ const authenticateUser = async (req, res, next) => {
     }
 
     const token = authHeader.split("Bearer ")[1];
-
     const decodedToken = await admin.auth().verifyIdToken(token);
-    req.user = decodedToken;
+
+    // Fetch user from database to get complete user info
+    const userResults = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, decodedToken.email!))
+      .limit(1);
+
+    if (userResults.length === 0) {
+      return res.status(401).json({ error: "User not found" });
+    }
+
+    const user = userResults[0];
+    req.user = {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      fileUploadsUsed: user.fileUploadsUsed,
+    };
 
     next();
   } catch (error) {

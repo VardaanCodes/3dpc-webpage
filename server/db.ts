@@ -31,7 +31,7 @@ if (!databaseUrl) {
 const sql = neon(databaseUrl);
 
 // Create and export the database connection with schema
-export const db = drizzle(sql, { schema });
+export const db = drizzle(sql as any, { schema });
 
 /**
  * Test the database connection

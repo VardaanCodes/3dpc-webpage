@@ -1,43 +1,20 @@
 /** @format */
 
-import { NetlifyIntegration } from "@netlify/functions";
+import { getStore } from "@netlify/blobs";
 import * as crypto from "crypto";
-
-let netlifyClient: NetlifyIntegration | null = null;
-
-/**
- * Get the Netlify SDK client, initializing it if necessary
- * @returns A Netlify SDK client instance
- */
-export function getNetlifyClient(): NetlifyIntegration {
-  if (!netlifyClient) {
-    try {
-      netlifyClient = new NetlifyIntegration();
-      console.log("Netlify SDK client initialized successfully");
-    } catch (error) {
-      console.error("Failed to initialize Netlify SDK client:", error);
-      throw new Error("Netlify SDK initialization failed");
-    }
-  }
-
-  return netlifyClient;
-}
 
 /**
  * Service class for managing file uploads with Netlify Blobs
  */
 export class NetlifyBlobsService {
-  private blobs;
-  private DEFAULT_RETENTION_DAYS = 30;
+  private storeName: string;
 
-  constructor() {
-    try {
-      const client = getNetlifyClient();
-      this.blobs = client.blobs;
-    } catch (error) {
-      console.error("Failed to initialize Netlify Blobs service:", error);
-      throw error;
-    }
+  constructor(storeName: string = "file-uploads") {
+    this.storeName = storeName;
+  }
+
+  private getStoreInstance() {
+    return getStore(this.storeName);
   }
 
   /**
@@ -75,7 +52,6 @@ export class NetlifyBlobsService {
 
     return mimeTypes[extension || ""] || "application/octet-stream";
   }
-
   /**
    * Upload a file to Netlify Blobs
    */
@@ -100,23 +76,24 @@ export class NetlifyBlobsService {
       const key = `${path}/${fileName}`;
 
       // Determine content type based on file extension
-      const contentType = this.getContentType(fileName);
-
-      // Upload the file to Netlify Blobs
-      const { url } = await this.blobs.store(key, buffer, {
-        contentType,
+      const contentType = this.getContentType(fileName); // Upload the file to Netlify Blobs
+      const store = this.getStoreInstance();
+      const blob = new Blob([buffer], { type: contentType });
+      await store.set(key, blob, {
         metadata: {
           ...metadata,
           userId,
           orderId: orderId || "",
           originalName: fileName,
+          contentType,
+          uploadedAt: new Date().toISOString(),
         },
       });
 
       // Return the file metadata
       return {
         key,
-        url,
+        url: `/api/files/${key}`, // We'll serve files through our API
         fileName,
         contentType,
         size: buffer.length,
@@ -129,7 +106,11 @@ export class NetlifyBlobsService {
       };
     } catch (error) {
       console.error("Error uploading file to Netlify Blobs:", error);
-      throw new Error(`File upload failed: ${error.message}`);
+      throw new Error(
+        `File upload failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
   }
 
@@ -138,42 +119,59 @@ export class NetlifyBlobsService {
    */
   async getFile(
     key: string
-  ): Promise<{ data: Buffer; metadata: Record<string, any> }> {
+  ): Promise<{ data: ArrayBuffer; metadata: Record<string, any> }> {
     try {
-      const { data, metadata } = await this.blobs.get(key);
-      return { data, metadata };
+      const store = this.getStoreInstance();
+      const result = await store.getWithMetadata(key);
+
+      if (!result) {
+        throw new Error("File not found");
+      }
+      return {
+        data: result.data as unknown as ArrayBuffer,
+        metadata: result.metadata as Record<string, any>,
+      };
     } catch (error) {
       console.error(`Error getting file ${key}:`, error);
-      throw new Error(`File retrieval failed: ${error.message}`);
+      throw new Error(
+        `File retrieval failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
   }
-
   /**
-   * Get a signed URL for a file
+   * Get a signed URL for a file (Netlify Blobs doesn't support signed URLs, so we'll return a direct API URL)
    */
   async getSignedUrl(key: string, expirationMinutes = 60): Promise<string> {
     try {
-      const url = await this.blobs.getSignedUrl({
-        key,
-        expiration: expirationMinutes * 60, // Convert to seconds
-      });
-      return url;
+      // Netlify Blobs doesn't support signed URLs like AWS S3
+      // We'll return a direct URL to our API endpoint that serves the file
+      return `/api/files/${key}`;
     } catch (error) {
       console.error(`Error generating signed URL for ${key}:`, error);
-      throw new Error(`Could not generate signed URL: ${error.message}`);
+      throw new Error(
+        `Could not generate signed URL: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
   }
-
   /**
    * Delete a file from Netlify Blobs
    */
   async deleteFile(key: string): Promise<boolean> {
     try {
-      await this.blobs.delete(key);
+      const store = this.getStoreInstance();
+      await store.delete(key);
       return true;
     } catch (error) {
       console.error(`Error deleting file ${key}:`, error);
-      throw new Error(`File deletion failed: ${error.message}`);
+      throw new Error(
+        `File deletion failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
   }
 
@@ -182,11 +180,16 @@ export class NetlifyBlobsService {
    */
   async listFiles(prefix: string): Promise<string[]> {
     try {
-      const { items } = await this.blobs.list({ prefix });
-      return items;
+      const store = this.getStoreInstance();
+      const { blobs } = await store.list({ prefix });
+      return blobs.map((blob) => blob.key);
     } catch (error) {
       console.error(`Error listing files with prefix ${prefix}:`, error);
-      throw new Error(`File listing failed: ${error.message}`);
+      throw new Error(
+        `File listing failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
   }
 }

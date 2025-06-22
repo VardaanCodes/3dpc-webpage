@@ -1,5 +1,14 @@
 /** @format */
 
+// Define Json type consistent across all storage implementations
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json }
+  | Json[];
+
 import {
   users,
   clubs,
@@ -14,22 +23,25 @@ import {
   insertAuditLogSchema,
   insertSystemConfigSchema,
   selectUserSchema,
+  selectClubSchema,
+  selectOrderSchema,
+  selectBatchSchema,
+  selectAuditLogSchema,
+  selectSystemConfigSchema,
+  User,
+  Club,
+  Order,
+  Batch,
+  AuditLog,
+  SystemConfig,
+  InsertUser,
+  InsertClub,
+  InsertOrder,
+  InsertBatch,
+  InsertAuditLog,
+  InsertSystemConfig,
 } from "../shared/schema";
-import { z } from "zod";
 import { RepositoryStorage } from "./storage/repositoryStorage";
-
-export type User = z.infer<typeof selectUserSchema>;
-export type Club = any;
-export type Order = any;
-export type Batch = any;
-export type AuditLog = any;
-export type SystemConfig = any;
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type InsertClub = z.infer<typeof insertClubSchema>;
-export type InsertOrder = z.infer<typeof insertOrderSchema>;
-export type InsertBatch = z.infer<typeof insertBatchSchema>;
-export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
-export type InsertSystemConfig = z.infer<typeof insertSystemConfigSchema>;
 
 export interface IStorage {
   // Users
@@ -82,6 +94,22 @@ export interface IStorage {
     updatedBy: number
   ): Promise<SystemConfig>;
 }
+
+// Export types for use in other files
+export type {
+  User,
+  Club,
+  Order,
+  Batch,
+  AuditLog,
+  SystemConfig,
+  InsertUser,
+  InsertClub,
+  InsertOrder,
+  InsertBatch,
+  InsertAuditLog,
+  InsertSystemConfig,
+};
 
 // Create and export an instance of the RepositoryStorage
 export const storage = new RepositoryStorage();
