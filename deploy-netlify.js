@@ -21,6 +21,7 @@ const __dirname = path.dirname(__filename);
 const clientBuildCommand = "vite build --emptyOutDir";
 const functionDir = path.join(process.cwd(), "netlify", "functions", "server");
 const serverCjsPath = path.join(functionDir, "server-cjs.js");
+const serverEnhancedPath = path.join(functionDir, "server-enhanced.js");
 const serverJsPath = path.join(functionDir, "server.js");
 
 console.log("Starting Netlify deployment preparation...");
@@ -36,21 +37,36 @@ try {
   } else {
     console.log("[Dry run] Would execute: " + clientBuildCommand);
   }
-
-  // Step 2: Copy the CommonJS server file to server.js
-  console.log("Setting up serverless function...");
-  if (fs.existsSync(serverCjsPath)) {
+  // Step 2: Copy the enhanced server file to server.js
+  console.log("Setting up enhanced serverless function...");
+  if (fs.existsSync(serverEnhancedPath)) {
     if (!isDryRun) {
-      // Copy server-cjs.js to server.js
-      fs.copyFileSync(serverCjsPath, serverJsPath);
-      console.log("Copied CommonJS server implementation to server.js");
+      // Copy server-enhanced.js to server.js
+      fs.copyFileSync(serverEnhancedPath, serverJsPath);
+      console.log("Copied enhanced server implementation to server.js");
     } else {
       console.log(
-        "[Dry run] Would copy: " + serverCjsPath + " to " + serverJsPath
+        "[Dry run] Would copy: " + serverEnhancedPath + " to " + serverJsPath
+      );
+    }
+  } else if (fs.existsSync(serverCjsPath)) {
+    if (!isDryRun) {
+      // Fallback to basic server if enhanced version doesn't exist
+      fs.copyFileSync(serverCjsPath, serverJsPath);
+      console.log(
+        "Copied basic CommonJS server implementation to server.js (fallback)"
+      );
+    } else {
+      console.log(
+        "[Dry run] Would copy: " +
+          serverCjsPath +
+          " to " +
+          serverJsPath +
+          " (fallback)"
       );
     }
   } else {
-    console.error("Error: server-cjs.js not found!");
+    console.error("Error: Neither server-enhanced.js nor server-cjs.js found!");
     process.exit(1);
   }
 

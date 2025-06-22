@@ -7,37 +7,45 @@ const session = require("express-session");
 
 // Create Express app
 const app = express();
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: false, limit: '10mb' }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 
 // CORS middleware for local development
 app.use((req, res, next) => {
   const allowedOrigins = [
-    'http://localhost:5000',
-    'http://localhost:3000',
-    'https://3dpc-webpage.netlify.app',
-    'https://deploy-preview-*--3dpc-webpage.netlify.app',
-    'https://branch-*--3dpc-webpage.netlify.app'
+    "http://localhost:5000",
+    "http://localhost:3000",
+    "https://3dpc-webpage.netlify.app",
+    "https://deploy-preview-*--3dpc-webpage.netlify.app",
+    "https://branch-*--3dpc-webpage.netlify.app",
   ];
-  
+
   const origin = req.headers.origin;
-  if (allowedOrigins.some(allowed => 
-    allowed.includes('*') ? 
-    origin && origin.match(allowed.replace('*', '.*')) : 
-    origin === allowed
-  )) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
+  if (
+    allowedOrigins.some((allowed) =>
+      allowed.includes("*")
+        ? origin && origin.match(allowed.replace("*", ".*"))
+        : origin === allowed
+    )
+  ) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
   }
-  
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-User-Email');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  
-  if (req.method === 'OPTIONS') {
+
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+  );
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-User-Email"
+  );
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+
+  if (req.method === "OPTIONS") {
     res.status(200).end();
     return;
   }
-  
+
   next();
 });
 
@@ -92,30 +100,30 @@ let firebaseInitialized = false;
 
 const initializeFirebase = () => {
   if (firebaseInitialized) return admin;
-  
+
   try {
     // Import firebase-admin dynamically to avoid cold start issues
     admin = require("firebase-admin");
-    
+
     if (admin.apps.length === 0) {
       const serviceAccountKey = process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT_KEY;
-      
+
       if (serviceAccountKey) {
         // Decode base64-encoded service account key
         const serviceAccount = JSON.parse(
-          Buffer.from(serviceAccountKey, 'base64').toString('utf8')
+          Buffer.from(serviceAccountKey, "base64").toString("utf8")
         );
-        
+
         admin.initializeApp({
           credential: admin.credential.cert(serviceAccount),
         });
-        
+
         console.log("Firebase Admin SDK initialized successfully");
       } else {
         console.warn("Firebase Admin SDK service account key not found");
       }
     }
-    
+
     firebaseInitialized = true;
     return admin;
   } catch (error) {
@@ -130,20 +138,20 @@ let dbInitialized = false;
 
 const initializeDatabase = async () => {
   if (dbInitialized && db) return db;
-  
+
   try {
     // Dynamic import for database modules to avoid cold start issues
     const { neon } = await import("@neondatabase/serverless");
     const { drizzle } = await import("drizzle-orm/neon-http");
     const schema = await import("../../shared/schema.js");
-    
+
     if (!process.env.DATABASE_URL) {
       throw new Error("DATABASE_URL environment variable is not set");
     }
-    
+
     const sql = neon(process.env.DATABASE_URL);
     db = drizzle(sql, { schema });
-    
+
     dbInitialized = true;
     console.log("Database connection initialized successfully");
     return db;
@@ -156,34 +164,37 @@ const initializeDatabase = async () => {
 // Enhanced Firebase authentication middleware
 app.use(async (req, res, next) => {
   const token = req.headers.authorization?.split("Bearer ")?.[1];
-  
+
   if (token && token !== "undefined" && token !== "null") {
     try {
       const firebaseAdmin = initializeFirebase();
-      
+
       if (firebaseAdmin) {
         console.log("Verifying Firebase token...");
         const decodedToken = await firebaseAdmin.auth().verifyIdToken(token);
         console.log("Token verified for user:", decodedToken.email);
-        
+
         // Initialize database connection
         const database = await initializeDatabase();
-        
+
         // Query user from database
         const { users } = await import("../../shared/schema.js");
         const { eq } = await import("drizzle-orm");
-        
+
         const userResults = await database
           .select()
           .from(users)
           .where(eq(users.email, decodedToken.email))
           .limit(1);
-        
+
         if (userResults.length > 0) {
           req.user = userResults[0];
           console.log("User attached to request:", req.user.email);
         } else {
-          console.log("User not found in database for email:", decodedToken.email);
+          console.log(
+            "User not found in database for email:",
+            decodedToken.email
+          );
           // User will be created during registration flow
         }
       }
@@ -192,7 +203,7 @@ app.use(async (req, res, next) => {
       // Don't block request, just don't authenticate
     }
   }
-  
+
   next();
 });
 
@@ -210,16 +221,16 @@ const requireRole = (roles) => (req, res, next) => {
   if (!req.user || !req.user.role) {
     return res.status(403).json({ message: "Insufficient permissions" });
   }
-  
+
   const minRequiredIndex = Math.min(
     ...roles.map((r) => roleHierarchy.indexOf(r)).filter((i) => i !== -1)
   );
   const userRoleIndex = roleHierarchy.indexOf(req.user.role.toUpperCase());
-  
+
   if (userRoleIndex === -1 || userRoleIndex < minRequiredIndex) {
     return res.status(403).json({ message: "Insufficient permissions" });
   }
-  
+
   next();
 };
 
@@ -227,7 +238,7 @@ const requireRole = (roles) => (req, res, next) => {
 app.get("/api/user/profile", requireAuth, async (req, res) => {
   try {
     if (!req.user) return res.status(401).json({ message: "Unauthorized" });
-    
+
     res.json(req.user);
   } catch (error) {
     console.error("Error fetching user profile:", error);
@@ -238,23 +249,23 @@ app.get("/api/user/profile", requireAuth, async (req, res) => {
 app.post("/api/user/register", async (req, res) => {
   try {
     console.log("Registration request body:", req.body);
-    
+
     const database = await initializeDatabase();
     const { users, insertUserSchema } = await import("../../shared/schema.js");
     const { eq } = await import("drizzle-orm");
-    
+
     // Check if user already exists
     const existingUser = await database
       .select()
       .from(users)
       .where(eq(users.email, req.body.email))
       .limit(1);
-    
+
     if (existingUser.length > 0) {
       console.log("Existing user found:", existingUser[0].email);
       return res.json(existingUser[0]);
     }
-    
+
     // Validate and create new user
     const userData = {
       ...req.body,
@@ -265,21 +276,21 @@ app.post("/api/user/register", async (req, res) => {
       fileUploadsUsed: req.body.fileUploadsUsed ?? 0,
       notificationPreferences: req.body.notificationPreferences || null,
     };
-    
+
     const validatedData = insertUserSchema.parse(userData);
-    
+
     const newUser = await database
       .insert(users)
       .values(validatedData)
       .returning();
-    
+
     console.log("New user created:", newUser[0].email);
     res.status(201).json(newUser[0]);
   } catch (error) {
     console.error("Registration error:", error);
-    res.status(400).json({ 
-      message: "Invalid user data", 
-      error: error.message 
+    res.status(400).json({
+      message: "Invalid user data",
+      error: error.message,
     });
   }
 });
@@ -287,8 +298,8 @@ app.post("/api/user/register", async (req, res) => {
 app.post("/api/user/logout", (req, res) => {
   req.session.destroy((err) => {
     if (err) {
-      return res.status(500).json({ 
-        message: "Could not log out, please try again." 
+      return res.status(500).json({
+        message: "Could not log out, please try again.",
       });
     }
     res.clearCookie("connect.sid");
@@ -301,7 +312,7 @@ app.get("/api/clubs", async (req, res) => {
   try {
     const database = await initializeDatabase();
     const { clubs } = await import("../../shared/schema.js");
-    
+
     const allClubs = await database.select().from(clubs);
     res.json(allClubs);
   } catch (error) {
@@ -316,16 +327,16 @@ app.get("/api/clubs/search", async (req, res) => {
     if (!query) {
       return res.json([]);
     }
-    
+
     const database = await initializeDatabase();
     const { clubs } = await import("../../shared/schema.js");
     const { ilike } = await import("drizzle-orm");
-    
+
     const searchResults = await database
       .select()
       .from(clubs)
       .where(ilike(clubs.name, `%${query}%`));
-    
+
     res.json(searchResults);
   } catch (error) {
     console.error("Error searching clubs:", error);
@@ -339,11 +350,11 @@ app.get("/api/orders", requireAuth, async (req, res) => {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-    
+
     const database = await initializeDatabase();
     const { orders, users, clubs } = await import("../../shared/schema.js");
     const { eq } = await import("drizzle-orm");
-    
+
     let orderQuery = database
       .select({
         order: orders,
@@ -353,21 +364,21 @@ app.get("/api/orders", requireAuth, async (req, res) => {
       .from(orders)
       .leftJoin(users, eq(orders.userId, users.id))
       .leftJoin(clubs, eq(orders.clubId, clubs.id));
-    
+
     // Filter by user role
     if (req.user.role === "USER") {
       orderQuery = orderQuery.where(eq(orders.userId, req.user.id));
     }
-    
+
     const ordersWithDetails = await orderQuery;
-    
+
     // Transform the data structure
-    const transformedOrders = ordersWithDetails.map(row => ({
+    const transformedOrders = ordersWithDetails.map((row) => ({
       ...row.order,
       user: req.user.role !== "USER" ? row.user : undefined,
       club: row.club,
     }));
-    
+
     res.json(transformedOrders);
   } catch (error) {
     console.error("Error fetching orders:", error);
@@ -378,28 +389,30 @@ app.get("/api/orders", requireAuth, async (req, res) => {
 app.post("/api/orders", requireAuth, async (req, res) => {
   try {
     if (!req.user) return res.status(401).json({ message: "Unauthorized" });
-    
+
     const database = await initializeDatabase();
-    const { orders, insertOrderSchema } = await import("../../shared/schema.js");
-    
+    const { orders, insertOrderSchema } = await import(
+      "../../shared/schema.js"
+    );
+
     const orderData = {
       ...req.body,
       userId: req.user.id,
     };
-    
+
     const validatedData = insertOrderSchema.parse(orderData);
-    
+
     const newOrder = await database
       .insert(orders)
       .values(validatedData)
       .returning();
-    
+
     res.status(201).json(newOrder[0]);
   } catch (error) {
     console.error("Error creating order:", error);
-    res.status(400).json({ 
-      message: "Invalid order data", 
-      error: error.message 
+    res.status(400).json({
+      message: "Invalid order data",
+      error: error.message,
     });
   }
 });
@@ -408,16 +421,16 @@ app.post("/api/orders", requireAuth, async (req, res) => {
 app.get("/api/stats/user", requireAuth, async (req, res) => {
   try {
     if (!req.user) return res.status(401).json({ message: "Unauthorized" });
-    
+
     const database = await initializeDatabase();
     const { orders } = await import("../../shared/schema.js");
     const { eq, count } = await import("drizzle-orm");
-    
+
     const userOrderCount = await database
       .select({ count: count() })
       .from(orders)
       .where(eq(orders.userId, req.user.id));
-    
+
     res.json({
       totalOrders: userOrderCount[0]?.count || 0,
       fileUploadsUsed: req.user.fileUploadsUsed || 0,
@@ -430,10 +443,10 @@ app.get("/api/stats/user", requireAuth, async (req, res) => {
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
-  res.json({ 
-    status: "ok", 
+  res.json({
+    status: "ok",
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || "development"
+    environment: process.env.NODE_ENV || "development",
   });
 });
 
@@ -448,9 +461,9 @@ app.use((err, req, res, next) => {
   console.error("Server error:", err);
   const status = err.status || err.statusCode || 500;
   const message = err.message || "Internal Server Error";
-  res.status(status).json({ 
-    message, 
-    error: process.env.NODE_ENV === "development" ? err.toString() : undefined 
+  res.status(status).json({
+    message,
+    error: process.env.NODE_ENV === "development" ? err.toString() : undefined,
   });
 });
 

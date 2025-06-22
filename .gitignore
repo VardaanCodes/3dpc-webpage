@@ -8,3 +8,5 @@ vite.config.ts.*
 serviceAccountKey.json
 # Local Netlify folder
 .netlify
+attached_assets/.obsidian/
+attached_assets/.smart-env/

@@ -2,6 +2,8 @@
   base = ""
   command = "pnpm run build:netlify"
   publish = "dist/client"
+  # Environment variables for build process
+  environment = { NODE_VERSION = "18", NPM_VERSION = "9" }
   # Alternative build command if main build fails:
   # command = "vite build --emptyOutDir && pnpm run build:server:simple"
 
@@ -9,6 +11,10 @@
   command = "pnpm run dev"
   port = 5000
   targetPort = 5000
+
+# Build plugins for enhanced functionality
+[[plugins]]
+  package = "@netlify/plugin-essential-next-js"
 
 [[redirects]]
   from = "/api/*"
@@ -23,6 +29,33 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+  # Optimize for better performance
+  included_files = ["shared/**/*.js", "shared/**/*.json"]
 
 [functions.server]
-  external_node_modules = ["express", "serverless-http", "express-session"]
+  external_node_modules = [
+    "express", 
+    "serverless-http", 
+    "express-session",
+    "firebase-admin",
+    "@neondatabase/serverless",
+    "drizzle-orm",
+    "zod"
+  ]
+
+# Headers for security and performance
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googleapis.com https://*.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.googleapis.com https://*.firebase.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://api.netlify.com;"
+
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type, Authorization, X-User-Email"
