@@ -52,7 +52,7 @@ export async function signInWithGoogle() {
       console.error("Current auth config:", {
         authDomain: auth.app.options.authDomain,
         projectId: auth.app.options.projectId,
-        apiKey: auth.app.options.apiKey ? "present" : "missing"
+        apiKey: auth.app.options.apiKey ? "present" : "missing",
       });
       throw new Error(
         "Authentication service is not properly configured. Please check Firebase settings and try again."

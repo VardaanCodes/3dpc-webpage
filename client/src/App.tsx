@@ -18,7 +18,9 @@ import DebugFirebase from "@/pages/DebugFirebase";
 
 function Router() {
   return (
-    <Switch>      {/* Public routes */}
+    <Switch>
+      {" "}
+      {/* Public routes */}
       <Route path="/login" component={Login} />
       <Route path="/readme" component={Readme} />
       <Route path="/debug" component={DebugFirebase} />
