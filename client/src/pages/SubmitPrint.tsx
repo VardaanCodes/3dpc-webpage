@@ -41,7 +41,7 @@ import { Layers, Users, User, Calendar, Palette, FileText } from "lucide-react";
 const submitPrintSchema = z.object({
   clubId: z.number().optional(),
   projectName: z.string().min(1, "Project name is required"),
-  eventDeadline: z.string().optional(),
+  eventDeadline: z.date().optional(),
   material: z.string().default("PLA"),
   color: z.string().default("White"),
   providingFilament: z.boolean().default(false),
@@ -98,31 +98,13 @@ export function SubmitPrint() {
     },
   });
   const onSubmit = (data: SubmitPrintForm) => {
-    if (files.length === 0) {
-      toast({
-        title: "No files uploaded",
-        description: "Please upload at least one file before submitting.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const fileMetadata = files.map((f) => ({
-      name: f.name,
-      size: f.size,
-      type: f.type,
-    }));
-
-    // Convert eventDeadline string to Date object if it exists
-    const formattedData = {
+    submitMutation.mutate({
       ...data,
+      files,
       eventDeadline: data.eventDeadline
         ? new Date(data.eventDeadline)
         : undefined,
-      files: fileMetadata,
-    };
-
-    submitMutation.mutate(formattedData);
+    });
   };
 
   return (

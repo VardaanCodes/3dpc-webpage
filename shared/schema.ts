@@ -106,9 +106,7 @@ export const insertClubSchema = createInsertSchema(clubs).omit({
   createdAt: true,
 });
 
-export const insertOrderSchema = createInsertSchema(orders, {
-  eventDeadline: z.coerce.date().optional(),
-}).omit({
+export const insertOrderSchema = createInsertSchema(orders).omit({
   id: true,
   orderId: true,
   submittedAt: true,
