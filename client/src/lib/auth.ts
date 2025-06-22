@@ -136,7 +136,7 @@ export async function registerUser(firebaseUser: FirebaseUser) {
     };
 
     console.log("Sending registration data:", userData);
-    
+
     try {
       const response = await apiRequest("POST", "/api/user/register", userData);
       const user = await response.json();
@@ -144,18 +144,26 @@ export async function registerUser(firebaseUser: FirebaseUser) {
       return user;
     } catch (apiError: any) {
       console.error("API registration error:", apiError);
-      
+
       // Handle specific error cases
       if (apiError.status === 404) {
-        throw new Error("Registration service is not available. Please try again later.");
+        throw new Error(
+          "Registration service is not available. Please try again later."
+        );
       } else if (apiError.status === 500) {
-        throw new Error("Server error during registration. Please try again later.");
+        throw new Error(
+          "Server error during registration. Please try again later."
+        );
       } else if (apiError.status === 400) {
-        throw new Error(`Registration failed: ${apiError.message || 'Invalid user data'}`);
-      } else if (apiError.message?.includes('Network Error')) {
-        throw new Error("Network error during registration. Please check your connection and try again.");
+        throw new Error(
+          `Registration failed: ${apiError.message || "Invalid user data"}`
+        );
+      } else if (apiError.message?.includes("Network Error")) {
+        throw new Error(
+          "Network error during registration. Please check your connection and try again."
+        );
       }
-      
+
       // Re-throw the original error if we don't know how to handle it
       throw apiError;
     }

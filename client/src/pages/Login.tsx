@@ -13,7 +13,6 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/components/AuthProvider";
 import { signInWithGoogle, signInAsGuest } from "@/lib/auth";
-import { auth } from "@/lib/firebase";
 import { Printer, Chrome, AlertCircle, Loader2 } from "lucide-react";
 import { getEnvironmentInfo } from "@/lib/environment";
 import { AuthDebugger } from "@/lib/authDebugger";
@@ -23,11 +22,6 @@ export default function Login() {
   const [, setLocation] = useLocation();
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [registrationError, setRegistrationError] = useState<string | null>(null);
-  
-  // Check if user is stuck in registration loop
-  const [registrationAttempts, setRegistrationAttempts] = useState(0);
-  const maxRegistrationAttempts = 3;
 
   console.log("Login component state:", {
     firebaseUser: firebaseUser?.email,
@@ -35,148 +29,8 @@ export default function Login() {
     isSigningIn,
     environment: getEnvironmentInfo(),
   });
-  
-  // Monitor registration attempts
-  useEffect(() => {
-    if (firebaseUser && !loading && registrationAttempts < maxRegistrationAttempts) {
-      const timer = setTimeout(() => {
-        setRegistrationAttempts(prev => prev + 1);
-      }, 5000); // Wait 5 seconds before considering it a failed attempt
-      
-      return () => clearTimeout(timer);
-    }
-  }, [firebaseUser, loading, registrationAttempts]);
-  
-  // Show registration error if too many attempts
-  useEffect(() => {
-    if (registrationAttempts >= maxRegistrationAttempts && firebaseUser && !loading) {
-      setRegistrationError("Registration is taking longer than expected. There may be an issue with the server.");
-    }  }, [registrationAttempts, firebaseUser, loading]);
-  
-  const handleRetryRegistration = async () => {
-    try {
-      setRegistrationError(null);
-      setRegistrationAttempts(0);
-      
-      if (firebaseUser) {
-        const { registerUser } = await import("@/lib/auth");
-        await registerUser(firebaseUser);
-        // If successful, the auth state will update and redirect
-      }
-    } catch (error: any) {
-      console.error("Manual registration retry failed:", error);
-      setRegistrationError(`Registration failed: ${error.message}`);
-    }
-  };
-
-  // If user is stuck, show registration error and retry option
-  if (firebaseUser && !loading && registrationError) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-        <div className="max-w-md w-full space-y-4">
-          <Card className="bg-slate-800 border-slate-700 shadow-xl">
-            <CardHeader>
-              <CardTitle className="text-white text-center">Registration Issue</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Alert className="border-red-600 bg-red-900/20">
-                <AlertCircle className="h-4 w-4 text-red-400" />
-                <AlertDescription className="text-red-300">
-                  {registrationError}
-                </AlertDescription>
-              </Alert>
-              
-              <div className="space-y-2">
-                <Button 
-                  onClick={handleRetryRegistration}
-                  className="w-full bg-blue-600 hover:bg-blue-700"
-                >
-                  Retry Registration
-                </Button>
-                
-                <Button 
-                  onClick={() => {
-                    setGuestUser(signInAsGuest());
-                    setLocation("/submit");
-                  }}
-                  variant="outline"
-                  className="w-full border-slate-600 text-slate-300 hover:bg-slate-700"
-                >
-                  Continue as Guest
-                </Button>
-                
-                <Button 
-                  onClick={async () => {
-                    await auth.signOut();
-                    setRegistrationError(null);
-                    setRegistrationAttempts(0);
-                  }}
-                  variant="ghost"
-                  className="w-full text-slate-400 hover:text-white"
-                >
-                  Sign Out and Try Again
-                </Button>
-              </div>
-              
-              <div className="text-xs text-slate-400 text-center">
-                Signed in as: {firebaseUser.email}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-  
   // Redirect if already authenticated
   useEffect(() => {
-                <AlertCircle className="h-4 w-4 text-red-400" />
-                <AlertDescription className="text-red-300">
-                  {registrationError}
-                </AlertDescription>
-              </Alert>
-              
-              <div className="space-y-2">
-                <Button 
-                  onClick={handleRetryRegistration}
-                  className="w-full bg-blue-600 hover:bg-blue-700"
-                >
-                  Retry Registration
-                </Button>
-                
-                <Button 
-                  onClick={() => {
-                    setGuestUser(signInAsGuest());
-                    setLocation("/submit");
-                  }}
-                  variant="outline"
-                  className="w-full border-slate-600 text-slate-300 hover:bg-slate-700"
-                >
-                  Continue as Guest
-                </Button>
-                
-                <Button 
-                  onClick={() => {
-                    auth.signOut();
-                    setRegistrationError(null);
-                    setRegistrationAttempts(0);
-                  }}
-                  variant="ghost"
-                  className="w-full text-slate-400 hover:text-white"
-                >
-                  Sign Out and Try Again
-                </Button>
-              </div>
-              
-              <div className="text-xs text-slate-400 text-center">
-                Signed in as: {firebaseUser.email}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
     console.log("Login useEffect triggered:", {
       loading,
       firebaseUser: firebaseUser?.email,
@@ -348,7 +202,7 @@ export default function Login() {
                 </ul>
               </div>
             </div>
-          </CardContent>{" "}
+          </CardContent>
         </Card>
 
         {/* Demo Mode Section */}
@@ -362,13 +216,13 @@ export default function Login() {
                 In the light of open-sourcing our project (thanks to Netlify for
                 inspiring and supporting open source), we are offering a demo
                 version of our site.
-              </p>{" "}
+              </p>
               <Button
                 onClick={handleGuestSignIn}
                 className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-medium py-3 text-base transition-colors"
               >
                 Login as Guest
-              </Button>{" "}
+              </Button>
               <div className="flex justify-between items-center text-xs">
                 <Link to="/readme" className="text-cyan-500 hover:underline">
                   Readme for Demo Features
@@ -386,7 +240,7 @@ export default function Login() {
                   />
                   <span>Powered by Netlify</span>
                 </a>
-              </div>{" "}
+              </div>
             </CardContent>
           </Card>
         </div>

@@ -20,7 +20,7 @@ async function throwIfResNotOk(res: Response) {
       url: res.url,
       status: res.status,
       statusText: res.statusText,
-      errorData
+      errorData,
     });
 
     const error = new Error(`${res.status}: ${errorText}`);

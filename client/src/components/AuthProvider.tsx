@@ -36,7 +36,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [guestUser, setGuestUser] = useState<User | null>(null);
-  const { data: user, refetch: refetchUser, error: userError } = useQuery<User>({
+  const {
+    data: user,
+    refetch: refetchUser,
+    error: userError,
+  } = useQuery<User>({
     queryKey: ["/api/user/profile"],
     enabled: !!firebaseUser && !guestUser,
     retry: (failureCount, error: any) => {
@@ -50,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refetchOnWindowFocus: false,
     refetchOnMount: false,
     staleTime: 5 * 60 * 1000, // 5 minutes
-  });// Handle user registration when Firebase user is available but backend user is not
+  }); // Handle user registration when Firebase user is available but backend user is not
   useEffect(() => {
     const userEmail = firebaseUser?.email || null;
 
@@ -96,17 +100,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             userEmail,
             error: error instanceof Error ? error.message : error,
           });
-          
+
           // For specific errors, don't retry
           if (error instanceof Error) {
-            if (error.message.includes('404') || error.message.includes('Network Error')) {
-              console.error("Critical registration error - not retrying:", error.message);
+            if (
+              error.message.includes("404") ||
+              error.message.includes("Network Error")
+            ) {
+              console.error(
+                "Critical registration error - not retrying:",
+                error.message
+              );
               // Don't reset state to prevent retries
               authStateManager.setAuthenticating(false);
               return;
             }
           }
-          
+
           // Reset state on other errors so user can try again
           authStateManager.reset();
         } finally {

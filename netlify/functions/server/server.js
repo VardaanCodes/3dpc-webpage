@@ -119,17 +119,23 @@ const initializeFirebase = () => {
             credential: admin.credential.cert(serviceAccount),
           });
 
-          console.log("Firebase Admin SDK initialized successfully with service account");
+          console.log(
+            "Firebase Admin SDK initialized successfully with service account"
+          );
         } catch (keyError) {
           console.error("Failed to parse service account key:", keyError);
           // Try to initialize with environment variables as fallback
           if (process.env.VITE_FIREBASE_PROJECT_ID) {
-            console.log("Attempting Firebase initialization with environment variables...");
+            console.log(
+              "Attempting Firebase initialization with environment variables..."
+            );
             admin.initializeApp({
               credential: admin.credential.applicationDefault(),
               projectId: process.env.VITE_FIREBASE_PROJECT_ID,
             });
-            console.log("Firebase Admin SDK initialized with application default credentials");
+            console.log(
+              "Firebase Admin SDK initialized with application default credentials"
+            );
           }
         }
       } else {
@@ -162,14 +168,20 @@ const initializeDatabase = async () => {
     const schema = await import("../../../shared/schema.js");
 
     // Use NETLIFY_DATABASE_URL if available, otherwise fall back to DATABASE_URL
-    const databaseUrl = process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL;
-    
+    const databaseUrl =
+      process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL;
+
     if (!databaseUrl) {
-      throw new Error("Neither NETLIFY_DATABASE_URL nor DATABASE_URL environment variable is set");
+      throw new Error(
+        "Neither NETLIFY_DATABASE_URL nor DATABASE_URL environment variable is set"
+      );
     }
 
-    console.log("Connecting to database with URL:", databaseUrl.split('@')[0] + '@***');
-    
+    console.log(
+      "Connecting to database with URL:",
+      databaseUrl.split("@")[0] + "@***"
+    );
+
     const sql = neon(databaseUrl);
     db = drizzle(sql, { schema });
 
@@ -219,7 +231,9 @@ app.use(async (req, res, next) => {
           // User will be created during registration flow
         }
       } else {
-        console.log("Firebase Admin SDK not available - skipping token verification");
+        console.log(
+          "Firebase Admin SDK not available - skipping token verification"
+        );
       }
     } catch (error) {
       console.log("Auth token verification failed:", error.message);
@@ -274,7 +288,9 @@ app.post("/api/user/register", async (req, res) => {
     console.log("Registration request body:", req.body);
 
     const database = await initializeDatabase();
-    const { users, insertUserSchema } = await import("../../../shared/schema.js");
+    const { users, insertUserSchema } = await import(
+      "../../../shared/schema.js"
+    );
     const { eq } = await import("drizzle-orm");
 
     // Check if user already exists
