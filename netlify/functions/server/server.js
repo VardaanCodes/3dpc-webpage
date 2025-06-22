@@ -162,9 +162,9 @@ const initializeDatabase = async () => {
   if (dbInitialized && db) return db;
 
   try {
-    // Dynamic import for database modules to avoid cold start issues
-    const { neon } = await import("@neondatabase/serverless");
-    const { drizzle } = await import("drizzle-orm/neon-http");
+    // Import database modules
+    const { neon } = require("@neondatabase/serverless");
+    const { drizzle } = require("drizzle-orm/neon-http");
     const schema = require("./schema.js");
 
     // Use NETLIFY_DATABASE_URL if available, otherwise fall back to DATABASE_URL
@@ -212,7 +212,7 @@ app.use(async (req, res, next) => {
 
         // Query user from database
         const { users } = require("./schema.js");
-        const { eq } = await import("drizzle-orm");
+        const { eq } = require("drizzle-orm");
 
         const userResults = await database
           .select()
@@ -289,7 +289,7 @@ app.post("/api/user/register", async (req, res) => {
 
     const database = await initializeDatabase();
     const { users, insertUserSchema } = require("./schema.js");
-    const { eq } = await import("drizzle-orm");
+    const { eq } = require("drizzle-orm");
 
     // Check if user already exists
     const existingUser = await database
@@ -367,7 +367,7 @@ app.get("/api/clubs/search", async (req, res) => {
 
     const database = await initializeDatabase();
     const { clubs } = require("./schema.js");
-    const { ilike } = await import("drizzle-orm");
+    const { ilike } = require("drizzle-orm");
 
     const searchResults = await database
       .select()
@@ -390,7 +390,7 @@ app.get("/api/orders", requireAuth, async (req, res) => {
 
     const database = await initializeDatabase();
     const { orders, users, clubs } = require("./schema.js");
-    const { eq } = await import("drizzle-orm");
+    const { eq } = require("drizzle-orm");
 
     let orderQuery = database
       .select({

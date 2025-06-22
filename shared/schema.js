@@ -1,19 +1,4 @@
-#!/usr/bin/env node
-/**
- * Prepare schema for Netlify deployment by creating a JavaScript ES module
- * that exports only the essential parts needed by the client
- *
- * @format
- */
-
-import fs from "fs";
-import path from "path";
-
-const targetDir = path.join(process.cwd(), "shared");
-const targetFile = path.join(targetDir, "schema.js");
-
-// Create a minimal JavaScript schema that includes only what's needed for the client
-const jsSchemaContent = `/** @format */
+/** @format */
 
 import {
   pgTable,
@@ -170,18 +155,3 @@ export const BatchStatus = {
   STARTED: "started",
   FINISHED: "finished",
 };
-`;
-
-try {
-  // Ensure target directory exists
-  if (!fs.existsSync(targetDir)) {
-    fs.mkdirSync(targetDir, { recursive: true });
-  }
-
-  // Write the JavaScript ES module
-  fs.writeFileSync(targetFile, jsSchemaContent);
-  console.log("Schema converted to JavaScript ES module for Netlify deployment");
-} catch (error) {
-  console.error("Error preparing schema for Netlify:", error);
-  process.exit(1);
-}
