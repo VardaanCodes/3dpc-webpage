@@ -12,10 +12,6 @@
   port = 5000
   targetPort = 5000
 
-# Build plugins for enhanced functionality
-[[plugins]]
-  package = "@netlify/plugin-essential-next-js"
-
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/server/:splat"
