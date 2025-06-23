@@ -12,6 +12,7 @@ import { Dashboard } from "@/pages/Dashboard";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
 import SuperAdminDashboard from "@/pages/SuperAdminDashboard";
+import { AdminDashboard } from "./pages/AdminDashboard";
 import DemoBanner from "@/components/DemoBanner";
 import Readme from "@/pages/Readme";
 import DebugFirebase from "@/pages/DebugFirebase";
@@ -52,7 +53,7 @@ function Router() {
       <Route path="/admin">
         <ProtectedRoute requiredRole="admin">
           <Navigation />
-          <Dashboard />
+          <AdminDashboard />
         </ProtectedRoute>
       </Route>{" "}
       <Route path="/superadmin">
