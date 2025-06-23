@@ -182,16 +182,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/orders", requireAuth, async (req, res) => {
     try {
       if (!req.user) return res.status(401).json({ message: "Unauthorized" });
-      if (
-        typeof req.body.eventDeadline === "string" &&
-        req.body.eventDeadline
-      ) {
-        // Convert to SQL DATE (YYYY-MM-DD)
-        const d = new Date(req.body.eventDeadline);
-        if (!isNaN(d.getTime())) {
-          req.body.eventDeadline = d.toISOString().slice(0, 10); // YYYY-MM-DD
-        } else {
-          req.body.eventDeadline = undefined;
+      // Convert all JS Date or date strings to SQL date (YYYY-MM-DD) or timestamp (YYYY-MM-DDTHH:mm:ss.sssZ)
+      const dateFields = [
+        "eventDeadline",
+        "estimatedCompletionTime",
+        "actualCompletionTime",
+        "submittedAt",
+        "updatedAt",
+      ];
+      for (const field of dateFields) {
+        if (req.body[field]) {
+          const d = new Date(req.body[field]);
+          if (!isNaN(d.getTime())) {
+            // Use YYYY-MM-DD for eventDeadline, else full ISO string for timestamps
+            req.body[field] =
+              field === "eventDeadline"
+                ? d.toISOString().slice(0, 10)
+                : d.toISOString();
+          } else {
+            req.body[field] = undefined;
+          }
         }
       }
       const orderData = insertOrderSchema.parse({
