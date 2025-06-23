@@ -188,10 +188,11 @@ export function SubmitPrint() {
                                 "bg-slate-800 border border-slate-600",
                               option: ({ isFocused, isSelected }) =>
                                 `${isFocused ? "bg-slate-700" : ""} ${
-                                  isSelected ? "bg-slate-600" : ""
+                                  isSelected ? "bg-slate-600 text-white" : ""
                                 } text-gray-100`,
                               placeholder: () => "text-gray-400",
                               input: () => "text-gray-100",
+                              singleValue: () => "text-white",
                             }}
                             styles={{
                               control: (base) => ({
@@ -212,9 +213,13 @@ export function SubmitPrint() {
                                   : state.isFocused
                                   ? "#475569"
                                   : "#1e293b",
-                                color: "#f1f5f9",
+                                color: state.isSelected ? "#ffffff" : "#f1f5f9",
                               }),
-                              input: (base) => ({ ...base, color: "#f1f5f9" }),
+                              input: (base) => ({ ...base, color: "#ffffff" }),
+                              singleValue: (base) => ({
+                                ...base,
+                                color: "#ffffff",
+                              }),
                             }}
                           />
                         </div>

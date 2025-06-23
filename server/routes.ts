@@ -581,6 +581,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.status(400).json({ message: "Invalid config data" });
       }
     }
+  ); // File download route with expiration check
+  app.get("/api/files/:id/download", requireAuth, async (req, res) => {
+    try {
+      if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+
+      const fileId = req.params.id;
+      const fileData = await storage.getFileById(fileId);
+
+      if (!fileData) {
+        return res.status(404).json({ message: "File not found" });
+      }
+
+      const file = fileData.metadata;
+
+      // Get the order to check expiration if file is associated with an order
+      if (file.orderId) {
+        const order = await storage.getOrder(file.orderId);
+        if (!order) {
+          return res
+            .status(404)
+            .json({ message: "Associated order not found" });
+        }
+
+        // Check if user owns the order or is admin
+        if (
+          order.userId !== req.user.id &&
+          !["ADMIN", "SUPERADMIN"].includes(req.user.role?.toUpperCase() || "")
+        ) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+
+        // Check file expiration (default 30 days, configurable)
+        const systemConfig = await storage.getSystemConfig(
+          "file_download_days"
+        );
+        const downloadDays = (systemConfig?.value as number) || 30;
+
+        if (order.submittedAt) {
+          const submittedDate = new Date(order.submittedAt);
+          const expiryDate = new Date(submittedDate);
+          expiryDate.setDate(expiryDate.getDate() + downloadDays);
+
+          if (new Date() > expiryDate) {
+            return res
+              .status(410)
+              .json({
+                message:
+                  "File has expired and is no longer available for download",
+              });
+          }
+        }
+      }
+
+      // Create audit log for file download
+      await storage.createAuditLog({
+        userId: req.user.id,
+        action: "file_downloaded",
+        entityType: "file",
+        entityId: fileId,
+        details: {
+          fileName: file.fileName,
+          orderId: file.orderId || null,
+        } as any,
+        reason: null,
+      });
+
+      // Set headers for file download
+      res.setHeader(
+        "Content-Type",
+        file.contentType || "application/octet-stream"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${file.fileName}"`
+      );
+      res.setHeader("Content-Length", file.size);
+
+      // Send the file data
+      res.send(fileData.data);
+    } catch (error) {
+      console.error("File download error:", error);
+      res.status(500).json({ message: "Failed to download file" });
+    }
+  });
+
+  // Admin stats endpoint
+  app.get(
+    "/api/stats/admin",
+    requireAuth,
+    requireRole(["ADMIN", "SUPERADMIN"]),
+    async (req, res) => {
+      try {
+        const orders: any[] = []; // This would need to be implemented in storage
+        const batches: any[] = []; // This would need to be implemented in storage
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const stats = {
+          totalOrders: orders.length,
+          totalPending: orders.filter((o: any) => o.status === "submitted")
+            .length,
+          inProgress: orders.filter((o: any) =>
+            ["approved", "started"].includes(o.status)
+          ).length,
+          batchesActive: batches.filter((b: any) => b.status === "active")
+            .length,
+          completedToday: orders.filter(
+            (o: any) =>
+              o.status === "finished" &&
+              o.actualCompletionTime &&
+              new Date(o.actualCompletionTime) >= today
+          ).length,
+          avgProcessingTime: "3.2 days", // This could be calculated from actual data
+        };
+
+        res.json(stats);
+      } catch (error) {
+        console.error("Admin stats error:", error);
+        res.status(500).json({ message: "Failed to get admin stats" });
+      }
+    }
   );
 
   // Add files routes

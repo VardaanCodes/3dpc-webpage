@@ -52,19 +52,32 @@ export function Contact() {
       message: "",
     },
   });
-
   const onSubmit = async (data: ContactForm) => {
     setIsSubmitting(true);
     try {
-      // Simulate form submission
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Prepare form data for Netlify
+      const formData = new FormData();
+      formData.append("form-name", "contact-support");
+      formData.append("subject", data.subject);
+      formData.append("orderId", data.orderId || "");
+      formData.append("message", data.message);
 
-      toast({
-        title: "Message sent successfully!",
-        description: "We'll get back to you within 24 hours.",
+      // Submit to Netlify
+      const response = await fetch("/", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams(formData as any).toString(),
       });
 
-      form.reset();
+      if (response.ok) {
+        toast({
+          title: "Message sent successfully!",
+          description: "We'll get back to you within 24 hours.",
+        });
+        form.reset();
+      } else {
+        throw new Error("Form submission failed");
+      }
     } catch (error) {
       toast({
         title: "Failed to send message",
@@ -221,12 +234,23 @@ export function Contact() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {" "}
             <Form {...form}>
               <form
+                name="contact-support"
+                method="POST"
+                data-netlify="true"
+                netlify-honeypot="bot-field"
                 onSubmit={form.handleSubmit(onSubmit)}
                 className="space-y-6"
-                netlify
               >
+                <input type="hidden" name="form-name" value="contact-support" />
+                <p className="hidden">
+                  <label>
+                    Don't fill this out if you're human:{" "}
+                    <input name="bot-field" />
+                  </label>
+                </p>
                 <FormField
                   control={form.control}
                   name="subject"
@@ -317,7 +341,6 @@ export function Contact() {
                 </Button>
               </form>
             </Form>
-
             <div className="mt-6 p-4 bg-slate-900 rounded-lg border border-slate-700">
               <h4 className="text-sm font-medium text-white mb-2">
                 Response Time
