@@ -186,7 +186,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         typeof req.body.eventDeadline === "string" &&
         req.body.eventDeadline
       ) {
-        req.body.eventDeadline = new Date(req.body.eventDeadline);
+        // Convert to SQL DATE (YYYY-MM-DD)
+        const d = new Date(req.body.eventDeadline);
+        if (!isNaN(d.getTime())) {
+          req.body.eventDeadline = d.toISOString().slice(0, 10); // YYYY-MM-DD
+        } else {
+          req.body.eventDeadline = undefined;
+        }
       }
       const orderData = insertOrderSchema.parse({
         ...req.body,
