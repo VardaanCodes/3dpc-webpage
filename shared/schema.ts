@@ -106,16 +106,18 @@ export const insertClubSchema = createInsertSchema(clubs).omit({
   createdAt: true,
 });
 
-export const insertOrderSchema = createInsertSchema(orders).omit({
-  id: true,
-  orderId: true,
-  submittedAt: true,
-  updatedAt: true,
-}).extend({
-  eventDeadline: z.union([z.string(), z.date()]).optional(),
-  estimatedCompletionTime: z.union([z.string(), z.date()]).optional(),
-  actualCompletionTime: z.union([z.string(), z.date()]).optional(),
-});
+export const insertOrderSchema = createInsertSchema(orders)
+  .omit({
+    id: true,
+    orderId: true,
+    submittedAt: true,
+    updatedAt: true,
+  })
+  .extend({
+    eventDeadline: z.string().optional().nullable(),
+    estimatedCompletionTime: z.string().optional().nullable(),
+    actualCompletionTime: z.string().optional().nullable(),
+  });
 
 export const insertBatchSchema = createInsertSchema(batches).omit({
   id: true,
@@ -137,11 +139,11 @@ export const insertSystemConfigSchema = createInsertSchema(systemConfig).omit({
 export const selectUserSchema = createSelectSchema(users);
 export const selectClubSchema = createSelectSchema(clubs);
 export const selectOrderSchema = createSelectSchema(orders).extend({
-  eventDeadline: z.union([z.string(), z.date()]).nullable(),
-  estimatedCompletionTime: z.union([z.string(), z.date()]).nullable(),
-  actualCompletionTime: z.union([z.string(), z.date()]).nullable(),
-  submittedAt: z.union([z.string(), z.date()]).nullable(),
-  updatedAt: z.union([z.string(), z.date()]).nullable(),
+  eventDeadline: z.string().nullable(),
+  estimatedCompletionTime: z.string().nullable(),
+  actualCompletionTime: z.string().nullable(),
+  submittedAt: z.string().nullable(),
+  updatedAt: z.string().nullable(),
 });
 export const selectBatchSchema = createSelectSchema(batches);
 export const selectAuditLogSchema = createSelectSchema(auditLogs);

@@ -178,11 +178,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Internal server error" });
     }
   });
-
   app.post("/api/orders", requireAuth, async (req, res) => {
     try {
       if (!req.user) return res.status(401).json({ message: "Unauthorized" });
-      // Convert all JS Date or date strings to SQL date (YYYY-MM-DD) or timestamp (YYYY-MM-DDTHH:mm:ss.sssZ)
+
+      // Convert all date strings to Date objects for database insertion
       const dateFields = [
         "eventDeadline",
         "estimatedCompletionTime",
@@ -190,24 +190,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "submittedAt",
         "updatedAt",
       ];
+
       for (const field of dateFields) {
         if (req.body[field]) {
           const d = new Date(req.body[field]);
           if (!isNaN(d.getTime())) {
-            // Use YYYY-MM-DD for eventDeadline, else full ISO string for timestamps
-            req.body[field] =
-              field === "eventDeadline"
-                ? d.toISOString().slice(0, 10)
-                : d.toISOString();
+            req.body[field] = d; // Convert to actual Date object for database
           } else {
-            req.body[field] = undefined;
+            req.body[field] = null;
           }
         }
       }
+
       const orderData = insertOrderSchema.parse({
         ...req.body,
         userId: req.user.id,
       });
+
       // Check file upload limits
       const fileUploadLimit = await storage.getSystemConfig(
         "file_upload_limit"
