@@ -212,10 +212,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Ensure the files field is an array
       if (!orderData.files || !Array.isArray(orderData.files)) {
         orderData.files = [];
-      }
+      } // Create a fully typed order object with all properties explicitly set
+      const sanitizedOrderData = {
+        userId: orderData.userId,
+        projectName: orderData.projectName,
+        clubId: orderData.clubId || null,
+        status: "submitted", // Default status for new orders
+        material: orderData.material || "PLA",
+        color: orderData.color || "White",
+        providingFilament: orderData.providingFilament ?? false,
+        specialInstructions: orderData.specialInstructions || null,
+        files: orderData.files || [],
+        batchId: null, // New orders don't belong to a batch yet
+        estimatedCompletionTime: null,
+        actualCompletionTime: null,
+        failureReason: null,
+        cancellationReason: null,
+        // Format date strings properly
+        eventDeadline: orderData.eventDeadline
+          ? new Date(orderData.eventDeadline).toISOString()
+          : null,
+      };
 
-      // Create the order
-      const order = await storage.createOrder(orderData);
+      // Create the order with sanitized data
+      const order = await storage.createOrder(sanitizedOrderData);
       console.log("Order created successfully:", order.orderId);
 
       // Update user's file upload count

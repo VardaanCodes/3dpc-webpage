@@ -179,16 +179,16 @@ export class OrdersRepository {
     }
 
     // Ensure orderId is not null or empty before inserting
-    if (!orderId) {
+    if (!orderId || orderId.trim() === "") {
       // Fallback ID generation if all else fails
       orderId = `#FALLBACK-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       console.log(`Using fallback order ID: ${orderId}`);
-    }
-
-    // Add the generated order ID and timestamps
+    } // Add the generated order ID and timestamps
     const orderWithId = {
       ...orderData,
-      orderId,
+      orderId:
+        orderId.trim() ||
+        `#FALLBACK-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // Ensure the orderId is trimmed and not empty
       submittedAt: new Date(),
       updatedAt: new Date(),
     };

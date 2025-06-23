@@ -37,6 +37,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { type Club } from "@shared/schema";
 import { Layers, Users, User, Calendar, Palette, FileText } from "lucide-react";
+import ReactSelect from "react-select";
 
 const submitPrintSchema = z.object({
   clubId: z.number().optional(),
@@ -64,8 +65,13 @@ export function SubmitPrint() {
       providingFilament: false,
     },
   });
+  // Query for all clubs (always enabled)
+  const { data: allClubs = [] } = useQuery<Club[]>({
+    queryKey: ["/api/clubs"],
+  });
 
-  const { data: clubs = [] } = useQuery<Club[]>({
+  // Query for filtered clubs when searching
+  const { data: filteredClubs = [] } = useQuery<Club[]>({
     queryKey: ["/api/clubs/search", clubSearch],
     enabled: clubSearch.length > 0,
   });
@@ -140,6 +146,7 @@ export function SubmitPrint() {
                 onSubmit={form.handleSubmit(onSubmit)}
                 className="space-y-6"
               >
+                {" "}
                 {/* Club/Team Selection */}
                 <FormField
                   control={form.control}
@@ -151,41 +158,49 @@ export function SubmitPrint() {
                         Club/Team Name
                       </FormLabel>
                       <FormControl>
-                        <div className="relative">
-                          <Input
-                            placeholder="Start typing to search clubs..."
-                            value={clubSearch}
-                            onChange={(e) => setClubSearch(e.target.value)}
-                            className="bg-slate-900 border-slate-600 text-white placeholder-gray-400"
-                          />
-                          {clubs.length > 0 && clubSearch && (
-                            <div className="absolute z-10 w-full mt-1 bg-slate-800 border border-slate-600 rounded-md shadow-lg">
-                              {clubs.map((club) => (
-                                <button
-                                  key={club.id}
-                                  type="button"
-                                  className="w-full px-4 py-2 text-left text-white hover:bg-slate-700 transition-colors"
-                                  onClick={() => {
-                                    field.onChange(club.id);
-                                    setClubSearch(club.name);
-                                  }}
-                                >
-                                  {club.name}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                        <ReactSelect
+                          placeholder="Search for a club..."
+                          options={allClubs.map((club) => ({
+                            value: club.id,
+                            label: club.name,
+                          }))}
+                          onInputChange={(inputValue) => {
+                            setClubSearch(inputValue);
+                          }}
+                          onChange={(selectedOption) => {
+                            field.onChange(selectedOption?.value);
+                          }}
+                          value={
+                            field.value
+                              ? allClubs
+                                  .filter((club) => club.id === field.value)
+                                  .map((club) => ({
+                                    value: club.id,
+                                    label: club.name,
+                                  }))[0]
+                              : null
+                          }
+                          classNames={{
+                            control: () =>
+                              "bg-slate-900 border-slate-600 text-white min-h-10",
+                            menu: () => "bg-slate-800 border border-slate-600",
+                            option: ({ isFocused, isSelected }) =>
+                              `${isFocused ? "bg-slate-700" : ""} ${
+                                isSelected ? "bg-slate-600" : ""
+                              } text-white`,
+                            placeholder: () => "text-gray-400",
+                            singleValue: () => "text-white",
+                            input: () => "text-white",
+                          }}
+                        />
                       </FormControl>
                       <FormDescription>
-                        If your club isn't listed, continue typing to add a new
-                        one
+                        Select your club or team from the dropdown
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-
                 {/* Project/Event Name */}
                 <FormField
                   control={form.control}
@@ -193,7 +208,6 @@ export function SubmitPrint() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-gray-300 flex items-center">
-                        <FileText className="mr-2 h-4 w-4" />
                         Project/Event Name
                       </FormLabel>
                       <FormControl>
@@ -207,7 +221,6 @@ export function SubmitPrint() {
                     </FormItem>
                   )}
                 />
-
                 {/* Event Deadline */}
                 <FormField
                   control={form.control}
@@ -229,7 +242,6 @@ export function SubmitPrint() {
                     </FormItem>
                   )}
                 />
-
                 {/* Material and Color */}
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
@@ -296,7 +308,6 @@ export function SubmitPrint() {
                     )}
                   />
                 </div>
-
                 {/* Filament Provision */}
                 <FormField
                   control={form.control}
@@ -326,7 +337,6 @@ export function SubmitPrint() {
                     </FormItem>
                   )}
                 />
-
                 {/* Special Instructions */}
                 <FormField
                   control={form.control}
@@ -348,7 +358,6 @@ export function SubmitPrint() {
                     </FormItem>
                   )}
                 />
-
                 {/* Submit Button */}
                 <Button
                   type="submit"

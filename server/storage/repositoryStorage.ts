@@ -270,8 +270,55 @@ export class RepositoryStorage implements IStorage {
   ): Promise<Order> {
     console.log("Creating order with data:", order);
 
+    // Generate a unique orderId
+    let orderId = "";
+    try {
+      if (order.clubId) {
+        // Get club code
+        const club = await this.getClub(order.clubId);
+        if (club && club.code) {
+          // Format: #RC23001 (Robotics Club, 2023, order #1)
+          const currentYear = new Date().getFullYear();
+          const academicYear = String(currentYear).substring(2);
+
+          // Count orders for this club
+          const clubOrders = await this.ordersRepo.getByClubId(order.clubId);
+          const printNumber = clubOrders.length + 1;
+
+          orderId = `#${club.code}${academicYear}${String(printNumber).padStart(
+            3,
+            "0"
+          )}`;
+        }
+      }
+
+      // If no club-specific ID could be generated, create a generic one
+      if (!orderId) {
+        const currentYear = new Date().getFullYear();
+        const academicYear = String(currentYear).substring(2);
+
+        // Get total order count
+        const allOrders = await this.ordersRepo.getAll();
+        const printNumber = allOrders.length + 1;
+
+        orderId = `#GEN${academicYear}${String(printNumber).padStart(3, "0")}`;
+      }
+
+      // Safety check - ensure orderId is not empty
+      if (!orderId) {
+        orderId = `#FALLBACK-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      }
+
+      console.log(`Generated order ID: ${orderId}`);
+    } catch (error) {
+      console.error("Error generating order ID:", error);
+      // Fallback ID generation
+      orderId = `#FALLBACK-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    }
+
     const dbData = {
       ...order,
+      orderId, // Add the generated orderId
       status: order.status || "submitted", // Add default status if not provided
       eventDeadline: order.eventDeadline ? new Date(order.eventDeadline) : null,
       estimatedCompletionTime: order.estimatedCompletionTime
