@@ -114,6 +114,7 @@ export const insertOrderSchema = createInsertSchema(orders)
     updatedAt: true,
   })
   .extend({
+    files: z.any().optional().default([]),
     eventDeadline: z
       .union([z.string(), z.date()])
       .optional()

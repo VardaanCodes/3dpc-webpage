@@ -27,7 +27,7 @@ const selectOrderSchema = z.object({
   userId: z.number(),
   clubId: z.number().nullable(),
   projectName: z.string(),
-  eventDeadline: z.date().nullable(),
+  eventDeadline: z.string().nullable(),
   material: z.string().nullable(),
   color: z.string().nullable(),
   providingFilament: z.boolean().nullable(),
@@ -35,12 +35,12 @@ const selectOrderSchema = z.object({
   files: z.custom<Json>().nullable(),
   status: z.string(),
   batchId: z.number().nullable(),
-  estimatedCompletionTime: z.date().nullable(),
-  actualCompletionTime: z.date().nullable(),
+  estimatedCompletionTime: z.string().nullable(),
+  actualCompletionTime: z.string().nullable(),
   failureReason: z.string().nullable(),
   cancellationReason: z.string().nullable(),
-  submittedAt: z.date().nullable(),
-  updatedAt: z.date().nullable(),
+  submittedAt: z.string().nullable(),
+  updatedAt: z.string().nullable(),
 });
 
 // Types
@@ -265,40 +265,81 @@ export class RepositoryStorage implements IStorage {
     const orders = await this.ordersRepo.getByStatus(status);
     return orders.map((order) => this.processOrderResult(order));
   }
-  async createOrder(order: InsertOrder): Promise<Order> {
+  async createOrder(
+    order: Omit<Order, "id" | "orderId" | "submittedAt" | "updatedAt">
+  ): Promise<Order> {
+    console.log("Creating order with data:", order);
+
+    const dbData = {
+      ...order,
+      status: order.status || "submitted", // Add default status if not provided
+      eventDeadline: order.eventDeadline ? new Date(order.eventDeadline) : null,
+      estimatedCompletionTime: order.estimatedCompletionTime
+        ? new Date(order.estimatedCompletionTime)
+        : null,
+      actualCompletionTime: order.actualCompletionTime
+        ? new Date(order.actualCompletionTime)
+        : null,
+      files: order.files || [],
+    };
+
     const processedOrder = await this.ordersRepo.create(
-      this.convertNullToUndefined(order) as any
+      this.convertNullToUndefined(dbData) as any
     );
+
+    console.log("Order created:", processedOrder);
     return this.processOrderResult(processedOrder);
   }
 
   async updateOrder(id: number, updates: Partial<Order>): Promise<Order> {
+    const dbUpdates: { [key: string]: any } = { ...updates };
+    const dateFields: (keyof Order)[] = [
+      "eventDeadline",
+      "estimatedCompletionTime",
+      "actualCompletionTime",
+      "submittedAt",
+      "updatedAt",
+    ];
+
+    for (const field of dateFields) {
+      const value = updates[field];
+      if (value && typeof value === "string") {
+        dbUpdates[field] = new Date(value);
+      }
+    }
+
     const processedOrder = await this.ordersRepo.update(
       id,
-      this.convertNullToUndefined(updates)
+      this.convertNullToUndefined(dbUpdates)
     );
     return this.processOrderResult(processedOrder);
   }
-
   // Helper method to process order results and ensure correct typing
   private processOrderResult(order: any): Order {
+    // Convert date objects to strings for compatibility with the interface
+    const convertDateToString = (date: Date | null): string | null => {
+      return date ? date.toISOString() : null;
+    };
+
     return {
       ...order,
       clubId: order.clubId === undefined ? null : order.clubId,
       files: this.ensureJsonType(order.files),
-      eventDeadline: order.eventDeadline || null,
+      eventDeadline: convertDateToString(order.eventDeadline),
       material: order.material || null,
       color: order.color || null,
       providingFilament:
         order.providingFilament === undefined ? null : order.providingFilament,
       specialInstructions: order.specialInstructions || null,
       batchId: order.batchId || null,
-      estimatedCompletionTime: order.estimatedCompletionTime || null,
-      actualCompletionTime: order.actualCompletionTime || null,
+      estimatedCompletionTime: convertDateToString(
+        order.estimatedCompletionTime
+      ),
+      actualCompletionTime: convertDateToString(order.actualCompletionTime),
       failureReason: order.failureReason || null,
       cancellationReason: order.cancellationReason || null,
-      submittedAt: order.submittedAt || null,
-      updatedAt: order.updatedAt || null,
+      submittedAt: convertDateToString(order.submittedAt),
+      updatedAt: convertDateToString(order.updatedAt),
     };
   }
   // Batch operations

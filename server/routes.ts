@@ -182,6 +182,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       if (!req.user) return res.status(401).json({ message: "Unauthorized" });
 
+      console.log("Order request body:", req.body);
+
+      // First validate that we have a userId
+      if (!req.user.id) {
+        return res.status(400).json({
+          message: "Invalid user ID",
+          error: "User ID is required but was not provided",
+        });
+      }
+
+      // Parse and validate the order data
       const orderData = insertOrderSchema.parse({
         ...req.body,
         userId: req.user.id,
@@ -198,7 +209,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "File upload limit exceeded" });
       }
 
+      // Ensure the files field is an array
+      if (!orderData.files || !Array.isArray(orderData.files)) {
+        orderData.files = [];
+      }
+
+      // Create the order
       const order = await storage.createOrder(orderData);
+      console.log("Order created successfully:", order.orderId);
 
       // Update user's file upload count
       if (orderData.files && Array.isArray(orderData.files)) {
@@ -220,7 +238,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.status(201).json(order);
     } catch (error) {
-      res.status(400).json({ message: "Invalid order data" });
+      console.error("Order creation error:", error);
+      res.status(400).json({
+        message: "Invalid order data",
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   });
   app.patch(

@@ -120,52 +120,69 @@ export class OrdersRepository {
    * Create a new order
    * @param orderData The order data
    * @returns The created order with ID
-   */
-  async create(orderData: InsertOrder): Promise<Order> {
+   */ async create(orderData: InsertOrder): Promise<Order> {
     // Generate a unique order ID if not provided
     // Format: #<ClubCode><AY><PrintNumber>
     let orderId = "";
 
-    // Try to get club code if clubId is provided
-    if (orderData.clubId) {
-      const clubResult = await db
-        .select({ code: clubs.code })
-        .from(clubs)
-        .where(eq(clubs.id, orderData.clubId))
-        .limit(1);
+    try {
+      // Try to get club code if clubId is provided
+      if (orderData.clubId) {
+        const clubResult = await db
+          .select({ code: clubs.code })
+          .from(clubs)
+          .where(eq(clubs.id, orderData.clubId))
+          .limit(1);
 
-      if (clubResult.length > 0) {
-        const clubCode = clubResult[0].code;
-        // Get current academic year (e.g., "23" for 2023-2024)
+        if (clubResult.length > 0) {
+          const clubCode = clubResult[0].code;
+          // Get current academic year (e.g., "23" for 2023-2024)
+          const currentYear = new Date().getFullYear();
+          const academicYear = String(currentYear).substring(2);
+
+          // Get count of existing orders for this club + year to determine print number
+          const orderCount = await db
+            .select({ count: sql`count(*)` })
+            .from(orders)
+            .where(eq(orders.clubId, orderData.clubId));
+
+          const printNumber = (orderCount[0].count as number) + 1;
+
+          // Format: #RC23001 (Robotics Club, 2023, order #1)
+          orderId = `#${clubCode}${academicYear}${String(printNumber).padStart(
+            3,
+            "0"
+          )}`;
+        }
+      }
+
+      // If we couldn't generate a club-specific ID, create a generic one
+      if (!orderId) {
+        // Format: #GEN23001 (Generic, 2023, sequential number)
         const currentYear = new Date().getFullYear();
         const academicYear = String(currentYear).substring(2);
 
-        // Get count of existing orders for this club + year to determine print number
         const orderCount = await db
           .select({ count: sql`count(*)` })
-          .from(orders)
-          .where(eq(orders.clubId, orderData.clubId));
+          .from(orders);
 
         const printNumber = (orderCount[0].count as number) + 1;
-
-        // Format: #RC23001 (Robotics Club, 2023, order #1)
-        orderId = `#${clubCode}${academicYear}${String(printNumber).padStart(
-          3,
-          "0"
-        )}`;
+        orderId = `#GEN${academicYear}${String(printNumber).padStart(3, "0")}`;
       }
+
+      console.log(`Generated order ID: ${orderId}`);
+    } catch (error) {
+      console.error("Error generating order ID:", error);
+      // Fallback ID generation if an error occurs
+      orderId = `#FALLBACK-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      console.log(`Using fallback order ID due to error: ${orderId}`);
     }
 
-    // If we couldn't generate a club-specific ID, create a generic one
+    // Ensure orderId is not null or empty before inserting
     if (!orderId) {
-      // Format: #GEN23001 (Generic, 2023, sequential number)
-      const currentYear = new Date().getFullYear();
-      const academicYear = String(currentYear).substring(2);
-
-      const orderCount = await db.select({ count: sql`count(*)` }).from(orders);
-
-      const printNumber = (orderCount[0].count as number) + 1;
-      orderId = `#GEN${academicYear}${String(printNumber).padStart(3, "0")}`;
+      // Fallback ID generation if all else fails
+      orderId = `#FALLBACK-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      console.log(`Using fallback order ID: ${orderId}`);
     }
 
     // Add the generated order ID and timestamps
@@ -175,6 +192,7 @@ export class OrdersRepository {
       submittedAt: new Date(),
       updatedAt: new Date(),
     };
+
     const results = await db.insert(orders).values(orderWithId).returning();
 
     // Cast unknown files to Json
