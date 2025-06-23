@@ -529,6 +529,16 @@ const requireRole = (roles) => (req, res, next) => {
   next();
 };
 
+// Helper function to get the current academic year (e.g., "2324")
+const getAcademicYear = (date) => {
+  const year = date.getFullYear();
+  const month = date.getMonth(); // 0-indexed, 6 is July
+  if (month >= 6) {
+    return `${year.toString().slice(-2)}${(year + 1).toString().slice(-2)}`;
+  }
+  return `${(year - 1).toString().slice(-2)}${year.toString().slice(-2)}`;
+};
+
 // User routes
 app.get("/api/user/profile", requireAuth, async (req, res) => {
   try {
@@ -753,7 +763,8 @@ app.post("/api/orders", requireAuth, async (req, res) => {
     if (!req.user) return res.status(401).json({ message: "Unauthorized" });
 
     const database = await initializeDatabase();
-    const { orders, insertOrderSchema } = require("./schema.js");
+    const { orders, insertOrderSchema, clubs } = require("./schema.js");
+    const { sql, like, eq } = require("drizzle-orm");
 
     const orderData = {
       ...req.body,
@@ -762,9 +773,67 @@ app.post("/api/orders", requireAuth, async (req, res) => {
 
     const validatedData = insertOrderSchema.parse(orderData);
 
+    // --- Start: Generate custom orderId ---
+
+    // 1. Get club code
+    const clubResult = await database
+      .select({ code: clubs.code })
+      .from(clubs)
+      .where(eq(clubs.id, validatedData.clubId))
+      .limit(1);
+
+    if (!clubResult || clubResult.length === 0) {
+      return res.status(400).json({ message: "Invalid club ID provided." });
+    }
+    const clubCode = clubResult[0].code;
+
+    // 2. Determine Academic Year (e.g., 24 for 2023-2024, 25 for 2024-2025)
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth(); // 0-11
+    // Academic year starts in August (index 7)
+    const academicYearEnd = month >= 7 ? year + 1 : year;
+    const academicYearShort = academicYearEnd.toString().slice(-2);
+
+    // 3. Determine next print number for the club and academic year
+    const orderIdPrefix = `#${clubCode}${academicYearShort}`;
+
+    const latestOrderForClub = await database
+      .select({ orderId: orders.orderId })
+      .from(orders)
+      .where(like(orders.orderId, `${orderIdPrefix}%`))
+      .orderBy(
+        sql`CAST(SUBSTRING(order_id FROM ${
+          orderIdPrefix.length + 1
+        }) AS INTEGER) DESC`
+      )
+      .limit(1);
+
+    let nextPrintNumber = 1;
+    if (latestOrderForClub.length > 0) {
+      const lastOrderId = latestOrderForClub[0].orderId;
+      const lastPrintNumberStr = lastOrderId.substring(orderIdPrefix.length);
+      const lastPrintNumber = parseInt(lastPrintNumberStr, 10);
+      if (!isNaN(lastPrintNumber)) {
+        nextPrintNumber = lastPrintNumber + 1;
+      }
+    }
+
+    // 4. Construct the new orderId, padded to 4 digits
+    const newOrderId = `${orderIdPrefix}${nextPrintNumber
+      .toString()
+      .padStart(4, "0")}`;
+
+    // --- End: Generate custom orderId ---
+
+    const dataToInsert = {
+      ...validatedData,
+      orderId: newOrderId,
+    };
+
     const newOrder = await database
       .insert(orders)
-      .values(validatedData)
+      .values(dataToInsert)
       .returning();
 
     res.status(201).json(newOrder[0]);
@@ -819,7 +888,7 @@ app.post(
         process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL;
       const sqlClient = require("@neondatabase/serverless").neon(dbUrl);
 
-      // Check current database state
+      // Check current database status
       const initStatus = {
         connectivity: false,
         tables: {},

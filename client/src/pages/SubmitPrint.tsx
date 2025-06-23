@@ -220,7 +220,8 @@ export function SubmitPrint() {
                         </div>
                       </FormControl>
                       <FormDescription>
-                        Select your club or team from the dropdown
+                        Select your club or team from the dropdown. If you can't
+                        find your club, please contact us from the contact page.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
