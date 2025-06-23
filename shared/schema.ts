@@ -114,9 +114,42 @@ export const insertOrderSchema = createInsertSchema(orders)
     updatedAt: true,
   })
   .extend({
-    eventDeadline: z.string().optional().nullable(),
-    estimatedCompletionTime: z.string().optional().nullable(),
-    actualCompletionTime: z.string().optional().nullable(),
+    eventDeadline: z
+      .union([z.string(), z.date()])
+      .optional()
+      .nullable()
+      .transform((val) => {
+        if (!val) return null;
+        if (typeof val === "string") {
+          const date = new Date(val);
+          return isNaN(date.getTime()) ? null : date;
+        }
+        return val;
+      }),
+    estimatedCompletionTime: z
+      .union([z.string(), z.date()])
+      .optional()
+      .nullable()
+      .transform((val) => {
+        if (!val) return null;
+        if (typeof val === "string") {
+          const date = new Date(val);
+          return isNaN(date.getTime()) ? null : date;
+        }
+        return val;
+      }),
+    actualCompletionTime: z
+      .union([z.string(), z.date()])
+      .optional()
+      .nullable()
+      .transform((val) => {
+        if (!val) return null;
+        if (typeof val === "string") {
+          const date = new Date(val);
+          return isNaN(date.getTime()) ? null : date;
+        }
+        return val;
+      }),
   });
 
 export const insertBatchSchema = createInsertSchema(batches).omit({

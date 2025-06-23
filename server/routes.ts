@@ -182,26 +182,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       if (!req.user) return res.status(401).json({ message: "Unauthorized" });
 
-      // Convert all date strings to Date objects for database insertion
-      const dateFields = [
-        "eventDeadline",
-        "estimatedCompletionTime",
-        "actualCompletionTime",
-        "submittedAt",
-        "updatedAt",
-      ];
-
-      for (const field of dateFields) {
-        if (req.body[field]) {
-          const d = new Date(req.body[field]);
-          if (!isNaN(d.getTime())) {
-            req.body[field] = d; // Convert to actual Date object for database
-          } else {
-            req.body[field] = null;
-          }
-        }
-      }
-
       const orderData = insertOrderSchema.parse({
         ...req.body,
         userId: req.user.id,

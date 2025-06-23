@@ -106,12 +106,51 @@ export const insertClubSchema = createInsertSchema(clubs).omit({
   createdAt: true,
 });
 
-export const insertOrderSchema = createInsertSchema(orders).omit({
-  id: true,
-  orderId: true,
-  submittedAt: true,
-  updatedAt: true,
-});
+export const insertOrderSchema = createInsertSchema(orders)
+  .omit({
+    id: true,
+    orderId: true,
+    submittedAt: true,
+    updatedAt: true,
+  })
+  .extend({
+    eventDeadline: z
+      .union([z.string(), z.date()])
+      .optional()
+      .nullable()
+      .transform((val) => {
+        if (!val) return null;
+        if (typeof val === "string") {
+          const date = new Date(val);
+          return isNaN(date.getTime()) ? null : date;
+        }
+        return val;
+      }),
+    estimatedCompletionTime: z
+      .union([z.string(), z.date()])
+      .optional()
+      .nullable()
+      .transform((val) => {
+        if (!val) return null;
+        if (typeof val === "string") {
+          const date = new Date(val);
+          return isNaN(date.getTime()) ? null : date;
+        }
+        return val;
+      }),
+    actualCompletionTime: z
+      .union([z.string(), z.date()])
+      .optional()
+      .nullable()
+      .transform((val) => {
+        if (!val) return null;
+        if (typeof val === "string") {
+          const date = new Date(val);
+          return isNaN(date.getTime()) ? null : date;
+        }
+        return val;
+      }),
+  });
 
 export const insertBatchSchema = createInsertSchema(batches).omit({
   id: true,
