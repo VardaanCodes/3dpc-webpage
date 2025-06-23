@@ -158,41 +158,66 @@ export function SubmitPrint() {
                         Club/Team Name
                       </FormLabel>
                       <FormControl>
-                        <ReactSelect
-                          placeholder="Search for a club..."
-                          options={allClubs.map((club) => ({
-                            value: club.id,
-                            label: club.name,
-                          }))}
-                          onInputChange={(inputValue) => {
-                            setClubSearch(inputValue);
-                          }}
-                          onChange={(selectedOption) => {
-                            field.onChange(selectedOption?.value);
-                          }}
-                          value={
-                            field.value
-                              ? allClubs
-                                  .filter((club) => club.id === field.value)
-                                  .map((club) => ({
-                                    value: club.id,
-                                    label: club.name,
-                                  }))[0]
-                              : null
-                          }
-                          classNames={{
-                            control: () =>
-                              "bg-slate-900 border-slate-600 text-white min-h-10",
-                            menu: () => "bg-slate-800 border border-slate-600",
-                            option: ({ isFocused, isSelected }) =>
-                              `${isFocused ? "bg-slate-700" : ""} ${
-                                isSelected ? "bg-slate-600" : ""
-                              } text-white`,
-                            placeholder: () => "text-gray-400",
-                            singleValue: () => "text-white",
-                            input: () => "text-white",
-                          }}
-                        />
+                        <div className="bg-slate-900 rounded-md border border-slate-600">
+                          <ReactSelect
+                            placeholder="Search for a club..."
+                            options={allClubs.map((club) => ({
+                              value: club.id,
+                              label: club.name,
+                            }))}
+                            onInputChange={(inputValue) => {
+                              setClubSearch(inputValue);
+                            }}
+                            onChange={(selectedOption) => {
+                              field.onChange(selectedOption?.value);
+                            }}
+                            value={
+                              field.value
+                                ? allClubs
+                                    .filter((club) => club.id === field.value)
+                                    .map((club) => ({
+                                      value: club.id,
+                                      label: club.name,
+                                    }))[0]
+                                : null
+                            }
+                            classNames={{
+                              control: () =>
+                                "bg-slate-900 border-slate-600 text-gray-100 min-h-10",
+                              menu: () =>
+                                "bg-slate-800 border border-slate-600",
+                              option: ({ isFocused, isSelected }) =>
+                                `${isFocused ? "bg-slate-700" : ""} ${
+                                  isSelected ? "bg-slate-600" : ""
+                                } text-gray-100`,
+                              placeholder: () => "text-gray-400",
+                              input: () => "text-gray-100",
+                            }}
+                            styles={{
+                              control: (base) => ({
+                                ...base,
+                                backgroundColor: "#0f172a",
+                                borderColor: "#334155",
+                                color: "#f1f5f9",
+                              }),
+                              menu: (base) => ({
+                                ...base,
+                                backgroundColor: "#1e293b",
+                                borderColor: "#334155",
+                              }),
+                              option: (base, state) => ({
+                                ...base,
+                                backgroundColor: state.isSelected
+                                  ? "#334155"
+                                  : state.isFocused
+                                  ? "#475569"
+                                  : "#1e293b",
+                                color: "#f1f5f9",
+                              }),
+                              input: (base) => ({ ...base, color: "#f1f5f9" }),
+                            }}
+                          />
+                        </div>
                       </FormControl>
                       <FormDescription>
                         Select your club or team from the dropdown
