@@ -2,6 +2,7 @@
 
 import { eq, and, sql } from "drizzle-orm";
 import { db } from "../db";
+import { getStore } from "@netlify/blobs";
 import { v4 as uuid } from "uuid";
 import { orders } from "../../shared/schema";
 import { createSelectSchema } from "drizzle-zod";
@@ -24,54 +25,7 @@ export interface FileMetadata {
  * Repository for file operations using Netlify Blobs for storage and PostgreSQL for metadata
  */
 export class FilesRepository {
-  private blobStore: any;
-  constructor() {
-    this.initializeBlobStore();
-  }
-
-  private async initializeBlobStore() {
-    try {
-      // Dynamic import to handle Netlify Blobs gracefully
-      const { getStore } = await import("@netlify/blobs");
-      this.blobStore = getStore("file-uploads");
-      console.log("Netlify Blobs initialized successfully");
-    } catch (error) {
-      console.warn("Netlify Blobs not available in local development:", error);
-      // Create a mock blob store for local development
-      this.blobStore = {
-        set: async (key: string, data: any, options?: any) => {
-          console.log("Mock blob store: storing", key);
-          return Promise.resolve();
-        },
-        get: async (key: string, options?: any) => {
-          console.log("Mock blob store: getting", key);
-          return null;
-        },
-        getWithMetadata: async (key: string) => {
-          console.log("Mock blob store: getting with metadata", key);
-          return null;
-        },
-        getMetadata: async (key: string) => {
-          console.log("Mock blob store: getting metadata", key);
-          return null;
-        },
-        delete: async (key: string) => {
-          console.log("Mock blob store: deleting", key);
-          return Promise.resolve();
-        },
-        list: async () => {
-          console.log("Mock blob store: listing");
-          return { blobs: [] };
-        },
-      };
-    }
-  }
-
-  private async ensureBlobStore() {
-    if (!this.blobStore) {
-      await this.initializeBlobStore();
-    }
-  }
+  private blobStore = getStore("file-uploads");
 
   /**
    * Upload a file to Netlify Blobs and store metadata in database
@@ -82,7 +36,8 @@ export class FilesRepository {
    * @param uploadedBy User ID who uploaded the file
    * @param orderId Optional order ID if file is associated with an order
    * @returns The file metadata including generated ID
-   */ async uploadFile(
+   */
+  async uploadFile(
     fileBuffer: Buffer | Blob,
     fileName: string,
     contentType: string,
@@ -90,8 +45,6 @@ export class FilesRepository {
     uploadedBy: number,
     orderId?: number
   ): Promise<FileMetadata> {
-    await this.ensureBlobStore();
-
     // Generate a unique ID for the file
     const fileId = uuid();
     const createdAt = new Date();
@@ -135,11 +88,10 @@ export class FilesRepository {
    * Get a file from Netlify Blobs by its ID
    * @param fileId The file ID
    * @returns The file content and metadata, or null if not found
-   */ async getFileById(
+   */
+  async getFileById(
     fileId: string
   ): Promise<{ data: Blob; metadata: FileMetadata } | null> {
-    await this.ensureBlobStore();
-
     const result = await this.blobStore.getWithMetadata(fileId);
 
     if (!result || !result.data) {
@@ -164,9 +116,8 @@ export class FilesRepository {
    * Get file data for download
    * @param fileId The file ID
    * @returns The file data as ArrayBuffer or null if not found
-   */ async getFileData(fileId: string): Promise<ArrayBuffer | null> {
-    await this.ensureBlobStore();
-
+   */
+  async getFileData(fileId: string): Promise<ArrayBuffer | null> {
     try {
       const result = await this.blobStore.get(fileId, { type: "arrayBuffer" });
       return result as ArrayBuffer;
@@ -180,9 +131,8 @@ export class FilesRepository {
    * Get file metadata without downloading the actual file
    * @param fileId The file ID
    * @returns The file metadata or null if not found
-   */ async getFileMetadata(fileId: string): Promise<FileMetadata | null> {
-    await this.ensureBlobStore();
-
+   */
+  async getFileMetadata(fileId: string): Promise<FileMetadata | null> {
     const result = await this.blobStore.getMetadata(fileId);
 
     if (!result || !result.metadata) {
@@ -204,9 +154,8 @@ export class FilesRepository {
    * @param fileId The file ID
    * @param orderId Optional order ID to remove file reference from
    * @returns True if file was deleted, false otherwise
-   */ async deleteFile(fileId: string, orderId?: number): Promise<boolean> {
-    await this.ensureBlobStore();
-
+   */
+  async deleteFile(fileId: string, orderId?: number): Promise<boolean> {
     try {
       // If file is associated with an order, remove it from the order's files field
       if (orderId) {
@@ -245,9 +194,8 @@ export class FilesRepository {
   /**
    * Clean up expired files
    * @returns Number of files deleted
-   */ async cleanupExpiredFiles(): Promise<number> {
-    await this.ensureBlobStore();
-
+   */
+  async cleanupExpiredFiles(): Promise<number> {
     let deletedCount = 0;
     const now = new Date();
 

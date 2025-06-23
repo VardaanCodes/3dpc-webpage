@@ -9,100 +9,15 @@ import {
   Timestamp,
 } from "firebase-admin/firestore";
 
-// Helper function to get Firestore instance safely
-export const getFirestore = () => {
-  if (!admin.apps.length) {
-    throw new Error("Firebase Admin SDK not initialized");
-  }
-  return admin.firestore();
-};
+// Initialize Firestore
+const db = admin.firestore();
 
-// Helper function to check if Firebase is available
-export const isFirebaseAvailable = () => {
-  try {
-    return admin.apps.length > 0;
-  } catch {
-    return false;
-  }
-};
-
-// Collection getter functions that check Firebase availability
-export const getUsersCollection = (): CollectionReference<DocumentData> => {
-  return getFirestore().collection("users");
-};
-
-export const getOrdersCollection = (): CollectionReference<DocumentData> => {
-  return getFirestore().collection("orders");
-};
-
-export const getBatchesCollection = (): CollectionReference<DocumentData> => {
-  return getFirestore().collection("batches");
-};
-
-export const getAuditLogsCollection = (): CollectionReference<DocumentData> => {
-  return getFirestore().collection("auditLogs");
-};
-
-export const getSystemConfigCollection =
-  (): CollectionReference<DocumentData> => {
-    return getFirestore().collection("systemConfig");
-  };
-
-// Legacy exports for backward compatibility (will throw if Firebase not available)
-export const usersCollection = new Proxy(
-  {} as CollectionReference<DocumentData>,
-  {
-    get(target, prop) {
-      return getUsersCollection()[
-        prop as keyof CollectionReference<DocumentData>
-      ];
-    },
-  }
-);
-
-export const ordersCollection = new Proxy(
-  {} as CollectionReference<DocumentData>,
-  {
-    get(target, prop) {
-      return getOrdersCollection()[
-        prop as keyof CollectionReference<DocumentData>
-      ];
-    },
-  }
-);
-
-export const batchesCollection = new Proxy(
-  {} as CollectionReference<DocumentData>,
-  {
-    get(target, prop) {
-      return getBatchesCollection()[
-        prop as keyof CollectionReference<DocumentData>
-      ];
-    },
-  }
-);
-
-export const auditLogsCollection = new Proxy(
-  {} as CollectionReference<DocumentData>,
-  {
-    get(target, prop) {
-      return getAuditLogsCollection()[
-        prop as keyof CollectionReference<DocumentData>
-      ];
-    },
-  }
-);
-
-export const systemConfigCollection = new Proxy(
-  {} as CollectionReference<DocumentData>,
-  {
-    get(target, prop) {
-      return getSystemConfigCollection()[
-        prop as keyof CollectionReference<DocumentData>
-      ];
-    },
-  }
-);
+// Collection References
+export const usersCollection = db.collection("users");
+export const ordersCollection = db.collection("orders");
+export const batchesCollection = db.collection("batches");
+export const auditLogsCollection = db.collection("auditLogs");
+export const systemConfigCollection = db.collection("systemConfig");
 
 // Helper functions for Firestore operations
 export const firestoreTimestamp = FieldValue.serverTimestamp;
