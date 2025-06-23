@@ -225,6 +225,7 @@ export function Contact() {
               <form
                 onSubmit={form.handleSubmit(onSubmit)}
                 className="space-y-6"
+                netlify
               >
                 <FormField
                   control={form.control}
