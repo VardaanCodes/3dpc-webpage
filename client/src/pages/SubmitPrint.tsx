@@ -72,7 +72,7 @@ export function SubmitPrint() {
   const submitMutation = useMutation({
     mutationFn: async (
       data: Omit<SubmitPrintForm, "eventDeadline"> & {
-        eventDeadline?: Date;
+        eventDeadline?: string; // Accept string in YYYY-MM-DD format
         files: any[];
       }
     ) => {
@@ -98,12 +98,18 @@ export function SubmitPrint() {
     },
   });
   const onSubmit = (data: SubmitPrintForm) => {
+    // Convert eventDeadline to YYYY-MM-DD if present
+    let eventDeadline: string | undefined = undefined;
+    if (data.eventDeadline) {
+      const d = new Date(data.eventDeadline);
+      if (!isNaN(d.getTime())) {
+        eventDeadline = d.toISOString().slice(0, 10); // YYYY-MM-DD
+      }
+    }
     submitMutation.mutate({
       ...data,
       files,
-      eventDeadline: data.eventDeadline
-        ? new Date(data.eventDeadline)
-        : undefined,
+      eventDeadline,
     });
   };
 
