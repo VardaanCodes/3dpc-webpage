@@ -56,6 +56,7 @@ import {
   Trash2,
   Archive,
   BarChart3,
+  Shield,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -514,30 +515,59 @@ export function AdminDashboard() {
             )}
           </CardContent>
         </Card>
-      </div>
+      </div>{" "}
       {/* Admin Queue Table */}
       <Card className="bg-slate-800 border-slate-700">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-white">All Print Orders</CardTitle>
+              <CardTitle className="text-white flex items-center space-x-2">
+                <Shield className="h-5 w-5 text-cyan-500" />
+                <span>Admin Print Queue Management</span>
+              </CardTitle>
               <CardDescription>
-                Manage and process all print requests
+                Administrative view with advanced controls and batch operations
               </CardDescription>
             </div>
             <div className="flex items-center space-x-3">
+              {/* Real-time refresh indicator */}
+              <div className="flex items-center space-x-2 text-sm text-gray-400">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span>Live Updates</span>
+              </div>
+
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="bg-slate-900 border-slate-600 text-white w-48">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="submitted">Submitted</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="started">Started</SelectItem>
-                  <SelectItem value="finished">Finished</SelectItem>
-                  <SelectItem value="failed">Failed</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                  <SelectItem value="all">
+                    All Status ({filteredOrders.length})
+                  </SelectItem>
+                  <SelectItem value="submitted">
+                    Pending Approval (
+                    {orders.filter((o) => o.status === "submitted").length})
+                  </SelectItem>
+                  <SelectItem value="approved">
+                    Approved (
+                    {orders.filter((o) => o.status === "approved").length})
+                  </SelectItem>
+                  <SelectItem value="started">
+                    In Progress (
+                    {orders.filter((o) => o.status === "started").length})
+                  </SelectItem>
+                  <SelectItem value="finished">
+                    Completed (
+                    {orders.filter((o) => o.status === "finished").length})
+                  </SelectItem>
+                  <SelectItem value="failed">
+                    Failed ({orders.filter((o) => o.status === "failed").length}
+                    )
+                  </SelectItem>
+                  <SelectItem value="cancelled">
+                    Cancelled (
+                    {orders.filter((o) => o.status === "cancelled").length})
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>

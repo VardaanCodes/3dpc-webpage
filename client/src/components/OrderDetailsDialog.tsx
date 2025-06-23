@@ -27,6 +27,7 @@ import {
   Palette,
   MessageSquare,
   Clock,
+  AlertTriangle,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -52,9 +53,25 @@ export function OrderDetailsDialog({
   });
   const handleDownloadFile = async (fileId: string, fileName: string) => {
     try {
-      const response = await fetch(`/api/files/${fileId}/download`);
+      const response = await fetch(`/api/files/${fileId}/download`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+        },
+      });
+
       if (!response.ok) {
-        throw new Error("File not found or expired");
+        if (response.status === 410) {
+          throw new Error(
+            "File has expired and is no longer available for download"
+          );
+        } else if (response.status === 404) {
+          throw new Error("File not found");
+        } else if (response.status === 403) {
+          throw new Error(
+            "Access denied - you don't have permission to download this file"
+          );
+        }
+        throw new Error("Failed to download file");
       }
 
       // Get the blob from the response
@@ -71,16 +88,32 @@ export function OrderDetailsDialog({
 
       // Clean up the object URL
       window.URL.revokeObjectURL(url);
+
+      // Show success message
+      // toast({ title: "Download started", description: `Downloading ${fileName}` });
     } catch (error) {
       console.error("Error downloading file:", error);
-      // You could add a toast notification here
+      // Show error message
+      // toast({
+      //   title: "Download failed",
+      //   description: error instanceof Error ? error.message : "Unknown error occurred",
+      //   variant: "destructive"
+      // });
     }
   };
+
   const isFileExpired = (submittedAt: string) => {
     const submitted = new Date(submittedAt);
     const expiryDate = new Date(submitted);
     expiryDate.setDate(expiryDate.getDate() + config.fileDownloadDays);
     return new Date() > expiryDate;
+  };
+
+  const getExpiryDate = (submittedAt: string) => {
+    const submitted = new Date(submittedAt);
+    const expiryDate = new Date(submitted);
+    expiryDate.setDate(expiryDate.getDate() + config.fileDownloadDays);
+    return expiryDate;
   };
 
   return (
@@ -216,8 +249,7 @@ export function OrderDetailsDialog({
               <h4 className="text-sm font-medium text-gray-400">
                 Attached Files ({files.length})
               </h4>
-            </div>
-
+            </div>{" "}
             {files.length === 0 ? (
               <p className="text-gray-500 text-sm">No files attached</p>
             ) : (
@@ -226,10 +258,24 @@ export function OrderDetailsDialog({
                   const expired = isFileExpired(
                     order.submittedAt || new Date().toISOString()
                   );
+                  const expiryDate = getExpiryDate(
+                    order.submittedAt || new Date().toISOString()
+                  );
+                  const daysUntilExpiry = Math.ceil(
+                    (expiryDate.getTime() - new Date().getTime()) /
+                      (1000 * 60 * 60 * 24)
+                  );
+
                   return (
                     <div
                       key={file.id}
-                      className="flex items-center justify-between bg-slate-900 p-3 rounded-lg"
+                      className={`flex items-center justify-between p-3 rounded-lg border ${
+                        expired
+                          ? "bg-red-900/20 border-red-800"
+                          : daysUntilExpiry <= 7
+                          ? "bg-yellow-900/20 border-yellow-800"
+                          : "bg-slate-900 border-slate-700"
+                      }`}
                     >
                       <div className="flex items-center space-x-3">
                         <FileText className="h-4 w-4 text-cyan-500" />
@@ -237,22 +283,54 @@ export function OrderDetailsDialog({
                           <p className="text-sm font-medium text-white">
                             {file.fileName}
                           </p>
-                          <p className="text-xs text-gray-400">
-                            {(file.size / 1024 / 1024).toFixed(2)} MB • Uploaded{" "}
-                            {format(
-                              new Date(file.createdAt || order.submittedAt),
-                              "MMM dd, yyyy"
+                          <div className="flex items-center space-x-2 text-xs text-gray-400">
+                            <span>
+                              {(file.size / 1024 / 1024).toFixed(2)} MB
+                            </span>
+                            <span>•</span>
+                            <span>
+                              Uploaded{" "}
+                              {format(
+                                new Date(file.createdAt || order.submittedAt),
+                                "MMM dd, yyyy"
+                              )}
+                            </span>
+                            {!expired && (
+                              <>
+                                <span>•</span>
+                                <span
+                                  className={
+                                    daysUntilExpiry <= 7
+                                      ? "text-yellow-400"
+                                      : "text-gray-400"
+                                  }
+                                >
+                                  {daysUntilExpiry > 0
+                                    ? `Expires in ${daysUntilExpiry} days`
+                                    : "Expires today"}
+                                </span>
+                              </>
                             )}
-                          </p>
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
                         {expired && (
                           <Badge
                             variant="secondary"
-                            className="text-xs bg-red-900 text-red-300"
+                            className="text-xs bg-red-900 text-red-300 border-red-800"
                           >
+                            <AlertTriangle className="h-3 w-3 mr-1" />
                             Expired
+                          </Badge>
+                        )}
+                        {!expired && daysUntilExpiry <= 7 && (
+                          <Badge
+                            variant="secondary"
+                            className="text-xs bg-yellow-900 text-yellow-300 border-yellow-800"
+                          >
+                            <Clock className="h-3 w-3 mr-1" />
+                            Expires soon
                           </Badge>
                         )}
                         <Button
@@ -263,6 +341,7 @@ export function OrderDetailsDialog({
                           }
                           disabled={expired}
                           className="text-cyan-400 hover:text-cyan-300 disabled:text-gray-500"
+                          title={expired ? "File has expired" : "Download file"}
                         >
                           <Download className="h-4 w-4" />
                         </Button>
@@ -272,14 +351,29 @@ export function OrderDetailsDialog({
                 })}
               </div>
             )}
-            {files.some((file: any) =>
-              isFileExpired(order.submittedAt || new Date().toISOString())
-            ) && (
-              <p className="text-xs text-gray-500 mt-2">
-                * Files are available for download for {config.fileDownloadDays}{" "}
-                days after submission
-              </p>
-            )}
+            {/* File expiration notice */}
+            <div className="mt-4 p-3 bg-slate-900 rounded-lg border border-slate-700">
+              <div className="flex items-start space-x-2">
+                <Clock className="h-4 w-4 text-gray-400 mt-0.5" />
+                <div className="text-xs text-gray-400">
+                  <p className="font-medium mb-1">File Download Policy</p>
+                  <p>
+                    Files are available for download for{" "}
+                    {config.fileDownloadDays} days after submission.
+                    {files.some((file: any) =>
+                      isFileExpired(
+                        order.submittedAt || new Date().toISOString()
+                      )
+                    ) && (
+                      <span className="text-red-400">
+                        {" "}
+                        Some files have expired and are no longer available.
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Providing Filament Badge */}

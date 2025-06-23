@@ -624,12 +624,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           expiryDate.setDate(expiryDate.getDate() + downloadDays);
 
           if (new Date() > expiryDate) {
-            return res
-              .status(410)
-              .json({
-                message:
-                  "File has expired and is no longer available for download",
-              });
+            return res.status(410).json({
+              message:
+                "File has expired and is no longer available for download",
+            });
           }
         }
       }
@@ -665,7 +663,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to download file" });
     }
   });
-
   // Admin stats endpoint
   app.get(
     "/api/stats/admin",
@@ -673,8 +670,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     requireRole(["ADMIN", "SUPERADMIN"]),
     async (req, res) => {
       try {
-        const orders: any[] = []; // This would need to be implemented in storage
-        const batches: any[] = []; // This would need to be implemented in storage
+        const orders = await storage.getAllOrders();
+        const batches = await storage.getAllBatches();
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
@@ -685,8 +682,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           inProgress: orders.filter((o: any) =>
             ["approved", "started"].includes(o.status)
           ).length,
-          batchesActive: batches.filter((b: any) => b.status === "active")
-            .length,
+          batchesActive: batches.filter((b: any) =>
+            ["created", "approved", "active"].includes(b.status)
+          ).length,
           completedToday: orders.filter(
             (o: any) =>
               o.status === "finished" &&
@@ -694,12 +692,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
               new Date(o.actualCompletionTime) >= today
           ).length,
           avgProcessingTime: "3.2 days", // This could be calculated from actual data
+          failed: orders.filter((o: any) =>
+            ["failed", "cancelled"].includes(o.status)
+          ).length,
+          totalUsers: await storage.getAllUsers().then((users) => users.length),
         };
 
         res.json(stats);
       } catch (error) {
         console.error("Admin stats error:", error);
         res.status(500).json({ message: "Failed to get admin stats" });
+      }
+    }
+  );
+  // System stats endpoint for super admins
+  app.get(
+    "/api/stats/system",
+    requireAuth,
+    requireRole(["SUPERADMIN"]),
+    async (req, res) => {
+      try {
+        const orders = await storage.getAllOrders();
+        const users = await storage.getAllUsers();
+        const batches = await storage.getAllBatches();
+
+        const systemStats = {
+          totalOrders: orders.length,
+          totalUsers: users.length,
+          totalAdmins: users.filter((u: any) => u.role === "ADMIN").length,
+          totalBatches: batches.length,
+          storageUsed: "2.4 GB", // This would be calculated from actual file storage
+          systemHealth: "healthy",
+          activeSessions: users.filter((u: any) => u.status === "active")
+            .length,
+        };
+
+        res.json(systemStats);
+      } catch (error) {
+        console.error("System stats error:", error);
+        res.status(500).json({ message: "Failed to get system stats" });
       }
     }
   );

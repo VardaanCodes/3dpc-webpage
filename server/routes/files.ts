@@ -217,6 +217,91 @@ router.delete("/files/:id", authenticateUser, async (req, res) => {
   }
 });
 
+// Download a file
+router.get("/files/:id/download", authenticateUser, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email, role, id: userId } = req.user as any;
+
+    // Get file metadata first
+    const metadata = await filesRepository.getFileMetadata(id);
+
+    if (!metadata) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    // Check if file is associated with an order and verify permissions
+    if (metadata.orderId) {
+      const orderResult = await db
+        .select()
+        .from(orders)
+        .where(eq(orders.id, metadata.orderId))
+        .limit(1);
+
+      if (!orderResult.length) {
+        return res.status(404).json({ error: "Associated order not found" });
+      }
+
+      const order = orderResult[0];
+
+      // Check if user owns the order or is admin
+      if (
+        order.userId !== userId &&
+        !["ADMIN", "SUPERADMIN"].includes(role?.toUpperCase() || "")
+      ) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Check file expiration (default 30 days, configurable)
+      if (order.submittedAt) {
+        const submittedDate = new Date(order.submittedAt);
+        const expiryDate = new Date(submittedDate);
+        expiryDate.setDate(expiryDate.getDate() + 30); // TODO: Make configurable
+
+        if (new Date() > expiryDate) {
+          return res.status(410).json({
+            error: "File has expired and is no longer available for download",
+          });
+        }
+      }
+    }
+
+    // Get the file data from Netlify Blobs
+    const fileData = await filesRepository.getFileData(id);
+
+    if (!fileData) {
+      return res.status(404).json({ error: "File data not found" });
+    }
+
+    // Log the download in audit logs
+    await auditLogsCollection.add({
+      userId: email,
+      action: "DOWNLOAD",
+      entityType: "FILE",
+      entityId: id,
+      details: `File ${metadata.fileName} downloaded`,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Set headers for file download
+    res.setHeader(
+      "Content-Type",
+      metadata.contentType || "application/octet-stream"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${metadata.fileName}"`
+    );
+    res.setHeader("Content-Length", metadata.size.toString());
+
+    // Send the file data
+    res.send(Buffer.from(fileData));
+  } catch (error: any) {
+    console.error("File download error:", error);
+    res.status(500).json({ error: "Failed to download file" });
+  }
+});
+
 // List files for an order
 router.get("/files/order/:orderId", authenticateUser, async (req, res) => {
   try {
