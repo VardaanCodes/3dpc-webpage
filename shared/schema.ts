@@ -111,6 +111,10 @@ export const insertOrderSchema = createInsertSchema(orders).omit({
   orderId: true,
   submittedAt: true,
   updatedAt: true,
+}).extend({
+  eventDeadline: z.union([z.string(), z.date()]).optional(),
+  estimatedCompletionTime: z.union([z.string(), z.date()]).optional(),
+  actualCompletionTime: z.union([z.string(), z.date()]).optional(),
 });
 
 export const insertBatchSchema = createInsertSchema(batches).omit({
@@ -132,7 +136,13 @@ export const insertSystemConfigSchema = createInsertSchema(systemConfig).omit({
 // Select schemas and types
 export const selectUserSchema = createSelectSchema(users);
 export const selectClubSchema = createSelectSchema(clubs);
-export const selectOrderSchema = createSelectSchema(orders);
+export const selectOrderSchema = createSelectSchema(orders).extend({
+  eventDeadline: z.union([z.string(), z.date()]).nullable(),
+  estimatedCompletionTime: z.union([z.string(), z.date()]).nullable(),
+  actualCompletionTime: z.union([z.string(), z.date()]).nullable(),
+  submittedAt: z.union([z.string(), z.date()]).nullable(),
+  updatedAt: z.union([z.string(), z.date()]).nullable(),
+});
 export const selectBatchSchema = createSelectSchema(batches);
 export const selectAuditLogSchema = createSelectSchema(auditLogs);
 export const selectSystemConfigSchema = createSelectSchema(systemConfig);
