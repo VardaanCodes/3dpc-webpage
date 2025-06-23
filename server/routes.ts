@@ -182,11 +182,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/orders", requireAuth, async (req, res) => {
     try {
       if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+      if (
+        typeof req.body.eventDeadline === "string" &&
+        req.body.eventDeadline
+      ) {
+        req.body.eventDeadline = new Date(req.body.eventDeadline);
+      }
       const orderData = insertOrderSchema.parse({
         ...req.body,
         userId: req.user.id,
       });
-
       // Check file upload limits
       const fileUploadLimit = await storage.getSystemConfig(
         "file_upload_limit"
