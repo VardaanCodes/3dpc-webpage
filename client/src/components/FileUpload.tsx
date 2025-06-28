@@ -1,10 +1,11 @@
 /** @format */
 
 import { useState, useCallback } from "react";
-import { Upload, X, FileCode, AlertCircle } from "lucide-react";
+import { Upload, X, FileCode, AlertCircle, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { apiRequest } from "@/lib/queryClient";
 
 interface FileData {
   id: string;
@@ -12,6 +13,10 @@ interface FileData {
   size: number;
   type: string;
   file: File;
+  uploadStatus?: 'pending' | 'uploading' | 'completed' | 'error';
+  uploadProgress?: number;
+  uploadedFileId?: string;
+  errorMessage?: string;
 }
 
 interface FileUploadProps {
@@ -52,6 +57,59 @@ export function FileUpload({
     return null;
   };
 
+  const uploadFile = async (fileData: FileData): Promise<void> => {
+    try {
+      // Update status to uploading
+      setFiles(prev => prev.map(f => 
+        f.id === fileData.id 
+          ? { ...f, uploadStatus: 'uploading', uploadProgress: 0 }
+          : f
+      ));
+
+      const formData = new FormData();
+      formData.append('file', fileData.file);
+
+      const response = await fetch('/api/files/upload', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      // Update file with uploaded metadata
+      setFiles(prev => prev.map(f => 
+        f.id === fileData.id 
+          ? { 
+              ...f, 
+              uploadStatus: 'completed', 
+              uploadProgress: 100,
+              uploadedFileId: result.file.id 
+            }
+          : f
+      ));
+
+    } catch (error) {
+      console.error('File upload error:', error);
+      setFiles(prev => prev.map(f => 
+        f.id === fileData.id 
+          ? { 
+              ...f, 
+              uploadStatus: 'error', 
+              uploadProgress: 0,
+              errorMessage: error instanceof Error ? error.message : 'Upload failed' 
+            }
+          : f
+      ));
+    }
+  };
+
   const addFiles = useCallback(
     (newFiles: FileList | File[]) => {
       setError(null);
@@ -77,6 +135,7 @@ export function FileUpload({
             size: file.size,
             type: file.type,
             file,
+            uploadStatus: 'pending',
           };
           validFiles.push(fileData);
         }
@@ -90,6 +149,11 @@ export function FileUpload({
       const updatedFiles = [...files, ...validFiles];
       setFiles(updatedFiles);
       onFilesChange(updatedFiles);
+
+      // Auto-upload files
+      validFiles.forEach(fileData => {
+        uploadFile(fileData);
+      });
     },
     [files, maxFiles, maxFileSize, acceptedTypes, onFilesChange]
   );
@@ -99,6 +163,13 @@ export function FileUpload({
     setFiles(updatedFiles);
     onFilesChange(updatedFiles);
     setError(null);
+  };
+
+  const retryUpload = (fileId: string) => {
+    const fileData = files.find(f => f.id === fileId);
+    if (fileData) {
+      uploadFile(fileData);
+    }
   };
 
   const handleDrag = (e: React.DragEvent) => {
@@ -134,6 +205,19 @@ export function FileUpload({
     const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  };
+
+  const getFileStatusIcon = (status?: string) => {
+    switch (status) {
+      case 'completed':
+        return <CheckCircle className="text-green-500 h-4 w-4" />;
+      case 'uploading':
+        return <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-cyan-500"></div>;
+      case 'error':
+        return <AlertCircle className="text-red-500 h-4 w-4" />;
+      default:
+        return <FileCode className="text-cyan-500 h-4 w-4" />;
+    }
   };
 
   return (
@@ -193,31 +277,62 @@ export function FileUpload({
       {/* Uploaded Files List */}
       {files.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-lg font-semibold text-white">Uploaded Files</h3>
+          <h3 className="text-lg font-semibold text-white">Files</h3>
           {files.map((file) => (
             <div
               key={file.id}
               className="flex items-center justify-between bg-slate-800 rounded-lg p-3"
             >
               <div className="flex items-center space-x-3">
-                <FileCode className="text-cyan-500 h-5 w-5" />
-                <div>
-                  <span className="text-sm font-medium text-white">
-                    {file.name}
-                  </span>
-                  <p className="text-xs text-gray-400">
-                    {formatFileSize(file.size)}
-                  </p>
+                {getFileStatusIcon(file.uploadStatus)}
+                <div className="flex-1">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-medium text-white">
+                      {file.name}
+                    </span>
+                    {file.uploadStatus === 'completed' && (
+                      <span className="text-xs text-green-400">✓ Uploaded</span>
+                    )}
+                    {file.uploadStatus === 'error' && (
+                      <span className="text-xs text-red-400">✗ Failed</span>
+                    )}
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <p className="text-xs text-gray-400">
+                      {formatFileSize(file.size)}
+                    </p>
+                    {file.uploadStatus === 'uploading' && (
+                      <p className="text-xs text-cyan-400">Uploading...</p>
+                    )}
+                    {file.uploadStatus === 'error' && file.errorMessage && (
+                      <p className="text-xs text-red-400">{file.errorMessage}</p>
+                    )}
+                  </div>
+                  {file.uploadStatus === 'uploading' && (
+                    <Progress value={file.uploadProgress || 0} className="w-full mt-1 h-1" />
+                  )}
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => removeFile(file.id)}
-                className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center space-x-2">
+                {file.uploadStatus === 'error' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => retryUpload(file.id)}
+                    className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-900/20"
+                  >
+                    Retry
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeFile(file.id)}
+                  className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           ))}
         </div>
@@ -238,8 +353,7 @@ export function FileUpload({
             className="w-full"
           />
           <p className="text-xs text-gray-400">
-            Limit resets every 30 days. Files are automatically deleted after 90
-            days.
+            Files are automatically uploaded and will be associated with your print request.
           </p>
         </div>
       </div>

@@ -1154,6 +1154,254 @@ app.get("/api/health", async (req, res) => {
   }
 });
 
+// Admin endpoints for order management
+app.patch("/api/orders/:id", requireAuth, requireRole(["ADMIN", "SUPERADMIN"]), async (req, res) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+
+    const database = await initializeDatabase();
+    const { orders, auditLogs } = require("./schema.js");
+    const { eq } = require("drizzle-orm");
+
+    const orderId = parseInt(req.params.id);
+    const updates = req.body;
+
+    // Update the order
+    const updatedOrders = await database
+      .update(orders)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(orders.id, orderId))
+      .returning();
+
+    if (updatedOrders.length === 0) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    // Create audit log
+    await database.insert(auditLogs).values({
+      userId: req.user.id,
+      action: "order_updated",
+      entityType: "order",
+      entityId: orderId.toString(),
+      details: updates,
+      reason: updates.reason || null,
+      timestamp: new Date(),
+    });
+
+    res.json(updatedOrders[0]);
+  } catch (error) {
+    console.error("Order update error:", error);
+    res.status(400).json({ message: "Failed to update order" });
+  }
+});
+
+app.patch("/api/orders/:id/status", requireAuth, requireRole(["ADMIN", "SUPERADMIN"]), async (req, res) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+
+    const database = await initializeDatabase();
+    const { orders, auditLogs } = require("./schema.js");
+    const { eq } = require("drizzle-orm");
+
+    const orderId = parseInt(req.params.id);
+    const { status } = req.body;
+
+    // Validate status
+    const validStatuses = ["submitted", "approved", "started", "finished", "failed", "cancelled"];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: "Invalid order status" });
+    }
+
+    // Update the order status
+    const updatedOrders = await database
+      .update(orders)
+      .set({
+        status,
+        updatedAt: new Date(),
+      })
+      .where(eq(orders.id, orderId))
+      .returning();
+
+    if (updatedOrders.length === 0) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    // Create audit log
+    await database.insert(auditLogs).values({
+      userId: req.user.id,
+      action: "order_status_updated",
+      entityType: "order",
+      entityId: orderId.toString(),
+      details: { status },
+      reason: null,
+      timestamp: new Date(),
+    });
+
+    res.json(updatedOrders[0]);
+  } catch (error) {
+    console.error("Order status update error:", error);
+    res.status(400).json({ message: "Failed to update order status" });
+  }
+});
+
+// Batch management endpoints
+app.get("/api/batches", requireAuth, requireRole(["ADMIN", "SUPERADMIN"]), async (req, res) => {
+  try {
+    const database = await initializeDatabase();
+    const { batches } = require("./schema.js");
+    const { desc } = require("drizzle-orm");
+
+    const allBatches = await database
+      .select()
+      .from(batches)
+      .orderBy(desc(batches.createdAt));
+
+    res.json(allBatches);
+  } catch (error) {
+    console.error("Error fetching batches:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+app.post("/api/batches", requireAuth, requireRole(["ADMIN", "SUPERADMIN"]), async (req, res) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+
+    const database = await initializeDatabase();
+    const { batches, auditLogs } = require("./schema.js");
+
+    const batchData = {
+      ...req.body,
+      createdById: req.user.id,
+      createdAt: new Date(),
+    };
+
+    const newBatches = await database
+      .insert(batches)
+      .values(batchData)
+      .returning();
+
+    const batch = newBatches[0];
+
+    // Create audit log
+    await database.insert(auditLogs).values({
+      userId: req.user.id,
+      action: "batch_created",
+      entityType: "batch",
+      entityId: batch.id.toString(),
+      details: { batchNumber: batch.batchNumber, name: batch.name },
+      reason: null,
+      timestamp: new Date(),
+    });
+
+    res.status(201).json(batch);
+  } catch (error) {
+    console.error("Batch creation error:", error);
+    res.status(400).json({ message: "Invalid batch data" });
+  }
+});
+
+app.patch("/api/batches/:id", requireAuth, requireRole(["ADMIN", "SUPERADMIN"]), async (req, res) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+
+    const database = await initializeDatabase();
+    const { batches, auditLogs } = require("./schema.js");
+    const { eq } = require("drizzle-orm");
+
+    const batchId = parseInt(req.params.id);
+    const updates = req.body;
+
+    const updatedBatches = await database
+      .update(batches)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(batches.id, batchId))
+      .returning();
+
+    if (updatedBatches.length === 0) {
+      return res.status(404).json({ message: "Batch not found" });
+    }
+
+    // Create audit log
+    await database.insert(auditLogs).values({
+      userId: req.user.id,
+      action: "batch_updated",
+      entityType: "batch",
+      entityId: batchId.toString(),
+      details: updates,
+      reason: null,
+      timestamp: new Date(),
+    });
+
+    res.json(updatedBatches[0]);
+  } catch (error) {
+    console.error("Batch update error:", error);
+    res.status(400).json({ message: "Failed to update batch" });
+  }
+});
+
+// User management endpoints
+app.get("/api/users", requireAuth, requireRole(["ADMIN", "SUPERADMIN"]), async (req, res) => {
+  try {
+    const database = await initializeDatabase();
+    const { users } = require("./schema.js");
+
+    const allUsers = await database.select().from(users);
+    res.json(allUsers);
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+app.patch("/api/users/:id", requireAuth, requireRole(["ADMIN", "SUPERADMIN"]), async (req, res) => {
+  try {
+    if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+
+    const database = await initializeDatabase();
+    const { users, auditLogs } = require("./schema.js");
+    const { eq } = require("drizzle-orm");
+
+    const userId = parseInt(req.params.id);
+    const updates = req.body;
+
+    const updatedUsers = await database
+      .update(users)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId))
+      .returning();
+
+    if (updatedUsers.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Create audit log
+    await database.insert(auditLogs).values({
+      userId: req.user.id,
+      action: "user_updated",
+      entityType: "user",
+      entityId: userId.toString(),
+      details: updates,
+      reason: null,
+      timestamp: new Date(),
+    });
+
+    res.json(updatedUsers[0]);
+  } catch (error) {
+    console.error("User update error:", error);
+    res.status(400).json({ message: "Failed to update user" });
+  }
+});
+
 // Return 404 for unknown API routes
 app.use("/api/*", (req, res) => {
   console.log(`404 - API endpoint not found: ${req.method} ${req.path}`);

@@ -112,9 +112,29 @@ export function SubmitPrint() {
         eventDeadline = d.toISOString().slice(0, 10); // YYYY-MM-DD
       }
     }
+
+    // Get only successfully uploaded files
+    const uploadedFiles = files
+      .filter(file => file.uploadStatus === 'completed' && file.uploadedFileId)
+      .map(file => ({
+        id: file.uploadedFileId,
+        fileName: file.name,
+        size: file.size,
+        contentType: file.type
+      }));
+
+    if (files.length > 0 && uploadedFiles.length === 0) {
+      toast({
+        title: "File upload incomplete",
+        description: "Please wait for all files to upload before submitting.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     submitMutation.mutate({
       ...data,
-      files,
+      files: uploadedFiles,
       eventDeadline,
     });
   };
