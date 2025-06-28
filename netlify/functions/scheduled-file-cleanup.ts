@@ -1,11 +1,14 @@
 /** @format */
 
-import { Handler, schedule } from "@netlify/functions";
-import { storage } from "../../server/storage.js";
+import type { Config } from "@netlify/functions";
+import { storage } from "../../server/storage.ts";
 
 // This function runs daily at 2 AM UTC to clean up expired files
-const handler: Handler = schedule("0 2 * * *", async (event, context) => {
+export default async (req: Request) => {
+  const { next_run } = await req.json();
+
   console.log("Starting automated file cleanup...");
+  console.log("Next invocation at:", next_run);
 
   try {
     // Get system configuration for file retention days
@@ -103,16 +106,8 @@ const handler: Handler = schedule("0 2 * * *", async (event, context) => {
     );
     console.log(`- Processed ${expiredOrders.length} expired orders`);
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        success: true,
-        deletedFilesCount,
-        totalSizeDeleted,
-        expiredOrdersCount: expiredOrders.length,
-        message: "File cleanup completed successfully",
-      }),
-    };
+    // Scheduled functions don't return response bodies, but we can log the result
+    console.log("File cleanup completed successfully");
   } catch (error) {
     console.error("File cleanup failed:", error);
 
@@ -134,16 +129,9 @@ const handler: Handler = schedule("0 2 * * *", async (event, context) => {
         auditError
       );
     }
-
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-        message: "File cleanup failed",
-      }),
-    };
   }
-});
+};
 
-export { handler };
+export const config: Config = {
+  schedule: "0 2 * * *", // Daily at 2 AM UTC
+};
