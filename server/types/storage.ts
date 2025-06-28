@@ -1,6 +1,13 @@
 /** @format */
 
-import { User, Club, Order, AuditLog, SystemConfig } from "../../shared/schema";
+import {
+  User,
+  Club,
+  Order,
+  Batch,
+  AuditLog,
+  SystemConfig,
+} from "../../shared/schema";
 
 /**
  * Interface for storage operations across the application
@@ -9,6 +16,7 @@ import { User, Club, Order, AuditLog, SystemConfig } from "../../shared/schema";
 export interface IStorage {
   // User operations
   getUser(id: number): Promise<User | undefined>;
+  getAllUsers(): Promise<User[]>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: Omit<User, "id" | "createdAt">): Promise<User>;
   updateUser(id: number, updates: Partial<User>): Promise<User>;
@@ -21,6 +29,7 @@ export interface IStorage {
 
   // Order operations
   getOrder(id: number): Promise<Order | undefined>;
+  getAllOrders(): Promise<Order[]>;
   getOrdersByUser(userId: number): Promise<Order[]>;
   getOrdersByClub(clubId: number): Promise<Order[]>;
   getOrdersByStatus(status: string): Promise<Order[]>;
@@ -33,6 +42,11 @@ export interface IStorage {
     updates: Partial<Order>
   ): Promise<Order>;
 
+  // Batch operations
+  getAllBatches(): Promise<Batch[]>;
+  createBatch(batch: Omit<Batch, "id" | "createdAt">): Promise<Batch>;
+  updateBatch(id: number, updates: Partial<Batch>): Promise<Batch>;
+
   // Audit log operations
   createAuditLog(log: Omit<AuditLog, "id" | "timestamp">): Promise<AuditLog>;
   getAuditLogs(
@@ -42,6 +56,8 @@ export interface IStorage {
 
   // System configuration
   getSystemConfig(key: string): Promise<SystemConfig | undefined>;
+  getAllSystemConfig(): Promise<SystemConfig[]>;
+  setSystemConfig(config: any): Promise<SystemConfig>;
   updateSystemConfig(
     key: string,
     value: any,

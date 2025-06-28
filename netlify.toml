@@ -25,7 +25,7 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"  # Optimize for better performance
-  included_files = ["shared/**/*.js"]
+  included_files = ["shared/**/*.js", "server/**/*.js"]
 
 [functions.server]
   external_node_modules = [

@@ -1,7 +1,7 @@
 /** @format */
 
 import { Handler, schedule } from "@netlify/functions";
-import { storage } from "../../server/storage/index.js";
+import { storage } from "../../server/storage.js";
 
 // This function runs daily at 2 AM UTC to clean up expired files
 const handler: Handler = schedule("0 2 * * *", async (event, context) => {
@@ -38,21 +38,40 @@ const handler: Handler = schedule("0 2 * * *", async (event, context) => {
       if (order.files && Array.isArray(order.files)) {
         for (const fileInfo of order.files) {
           try {
+            // Type guard and null check
+            if (
+              !fileInfo ||
+              typeof fileInfo !== "object" ||
+              !("id" in fileInfo)
+            ) {
+              continue;
+            }
+
+            const file = fileInfo as {
+              id: string;
+              fileName: string;
+              size?: number;
+            };
+
             // Get file metadata to check size before deletion
-            const fileData = await storage.getFileById(fileInfo.id);
+            const fileData = await storage.getFileById(file.id);
             if (fileData) {
               totalSizeDeleted += fileData.metadata.size || 0;
             }
 
             // Delete the file from storage
-            await storage.deleteFile(fileInfo.id);
+            await storage.deleteFile(file.id);
             deletedFilesCount++;
 
             console.log(
-              `Deleted expired file: ${fileInfo.fileName} (Order: ${order.orderId})`
+              `Deleted expired file: ${file.fileName} (Order: ${order.orderId})`
             );
           } catch (error) {
-            console.error(`Failed to delete file ${fileInfo.fileName}:`, error);
+            const file = fileInfo as { fileName?: string };
+            console.error(
+              `Failed to delete file ${file.fileName || "unknown"}:`,
+              error
+            );
           }
         }
 
