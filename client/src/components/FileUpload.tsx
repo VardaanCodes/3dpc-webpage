@@ -13,7 +13,7 @@ interface FileData {
   size: number;
   type: string;
   file: File;
-  uploadStatus?: 'pending' | 'uploading' | 'completed' | 'error';
+  uploadStatus?: "pending" | "uploading" | "completed" | "error";
   uploadProgress?: number;
   uploadedFileId?: string;
   errorMessage?: string;
@@ -60,20 +60,22 @@ export function FileUpload({
   const uploadFile = async (fileData: FileData): Promise<void> => {
     try {
       // Update status to uploading
-      setFiles(prev => prev.map(f => 
-        f.id === fileData.id 
-          ? { ...f, uploadStatus: 'uploading', uploadProgress: 0 }
-          : f
-      ));
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.id === fileData.id
+            ? { ...f, uploadStatus: "uploading", uploadProgress: 0 }
+            : f
+        )
+      );
 
       const formData = new FormData();
-      formData.append('file', fileData.file);
+      formData.append("file", fileData.file);
 
-      const response = await fetch('/api/files/upload', {
-        method: 'POST',
+      const response = await fetch("/api/files/upload", {
+        method: "POST",
         body: formData,
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`,
+          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`,
         },
       });
 
@@ -82,31 +84,35 @@ export function FileUpload({
       }
 
       const result = await response.json();
-      
-      // Update file with uploaded metadata
-      setFiles(prev => prev.map(f => 
-        f.id === fileData.id 
-          ? { 
-              ...f, 
-              uploadStatus: 'completed', 
-              uploadProgress: 100,
-              uploadedFileId: result.file.id 
-            }
-          : f
-      ));
 
+      // Update file with uploaded metadata
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.id === fileData.id
+            ? {
+                ...f,
+                uploadStatus: "completed",
+                uploadProgress: 100,
+                uploadedFileId: result.file.id,
+              }
+            : f
+        )
+      );
     } catch (error) {
-      console.error('File upload error:', error);
-      setFiles(prev => prev.map(f => 
-        f.id === fileData.id 
-          ? { 
-              ...f, 
-              uploadStatus: 'error', 
-              uploadProgress: 0,
-              errorMessage: error instanceof Error ? error.message : 'Upload failed' 
-            }
-          : f
-      ));
+      console.error("File upload error:", error);
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.id === fileData.id
+            ? {
+                ...f,
+                uploadStatus: "error",
+                uploadProgress: 0,
+                errorMessage:
+                  error instanceof Error ? error.message : "Upload failed",
+              }
+            : f
+        )
+      );
     }
   };
 
@@ -135,7 +141,7 @@ export function FileUpload({
             size: file.size,
             type: file.type,
             file,
-            uploadStatus: 'pending',
+            uploadStatus: "pending",
           };
           validFiles.push(fileData);
         }
@@ -151,7 +157,7 @@ export function FileUpload({
       onFilesChange(updatedFiles);
 
       // Auto-upload files
-      validFiles.forEach(fileData => {
+      validFiles.forEach((fileData) => {
         uploadFile(fileData);
       });
     },
@@ -166,7 +172,7 @@ export function FileUpload({
   };
 
   const retryUpload = (fileId: string) => {
-    const fileData = files.find(f => f.id === fileId);
+    const fileData = files.find((f) => f.id === fileId);
     if (fileData) {
       uploadFile(fileData);
     }
@@ -209,11 +215,13 @@ export function FileUpload({
 
   const getFileStatusIcon = (status?: string) => {
     switch (status) {
-      case 'completed':
+      case "completed":
         return <CheckCircle className="text-green-500 h-4 w-4" />;
-      case 'uploading':
-        return <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-cyan-500"></div>;
-      case 'error':
+      case "uploading":
+        return (
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-cyan-500"></div>
+        );
+      case "error":
         return <AlertCircle className="text-red-500 h-4 w-4" />;
       default:
         return <FileCode className="text-cyan-500 h-4 w-4" />;
@@ -290,10 +298,10 @@ export function FileUpload({
                     <span className="text-sm font-medium text-white">
                       {file.name}
                     </span>
-                    {file.uploadStatus === 'completed' && (
+                    {file.uploadStatus === "completed" && (
                       <span className="text-xs text-green-400">✓ Uploaded</span>
                     )}
-                    {file.uploadStatus === 'error' && (
+                    {file.uploadStatus === "error" && (
                       <span className="text-xs text-red-400">✗ Failed</span>
                     )}
                   </div>
@@ -301,20 +309,25 @@ export function FileUpload({
                     <p className="text-xs text-gray-400">
                       {formatFileSize(file.size)}
                     </p>
-                    {file.uploadStatus === 'uploading' && (
+                    {file.uploadStatus === "uploading" && (
                       <p className="text-xs text-cyan-400">Uploading...</p>
                     )}
-                    {file.uploadStatus === 'error' && file.errorMessage && (
-                      <p className="text-xs text-red-400">{file.errorMessage}</p>
+                    {file.uploadStatus === "error" && file.errorMessage && (
+                      <p className="text-xs text-red-400">
+                        {file.errorMessage}
+                      </p>
                     )}
                   </div>
-                  {file.uploadStatus === 'uploading' && (
-                    <Progress value={file.uploadProgress || 0} className="w-full mt-1 h-1" />
+                  {file.uploadStatus === "uploading" && (
+                    <Progress
+                      value={file.uploadProgress || 0}
+                      className="w-full mt-1 h-1"
+                    />
                   )}
                 </div>
               </div>
               <div className="flex items-center space-x-2">
-                {file.uploadStatus === 'error' && (
+                {file.uploadStatus === "error" && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -353,7 +366,8 @@ export function FileUpload({
             className="w-full"
           />
           <p className="text-xs text-gray-400">
-            Files are automatically uploaded and will be associated with your print request.
+            Files are automatically uploaded and will be associated with your
+            print request.
           </p>
         </div>
       </div>

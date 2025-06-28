@@ -8,6 +8,7 @@ import { BatchesRepository, Batch } from "../repositories/batches";
 import { AuditLogsRepository, AuditLog } from "../repositories/auditLogs";
 import { SystemConfigRepository, SystemConfig } from "../repositories/system";
 import { FilesRepository } from "../repositories/files";
+import { NotificationService } from "../services/NotificationService";
 import * as schema from "../../shared/schema";
 import { z } from "zod";
 
@@ -70,6 +71,7 @@ export class RepositoryStorage implements IStorage {
   private auditLogsRepo: AuditLogsRepository;
   private systemRepo: SystemConfigRepository;
   private filesRepo: FilesRepository;
+  private notificationService: NotificationService;
   constructor() {
     // Initialize all repositories
     this.usersRepo = new UsersRepository();
@@ -79,6 +81,7 @@ export class RepositoryStorage implements IStorage {
     this.auditLogsRepo = new AuditLogsRepository();
     this.systemRepo = new SystemConfigRepository();
     this.filesRepo = new FilesRepository();
+    this.notificationService = new NotificationService();
   }
 
   // Helper function to safely convert nullable values to undefined for compatibility
@@ -361,6 +364,51 @@ export class RepositoryStorage implements IStorage {
     );
     return this.processOrderResult(processedOrder);
   }
+
+  async updateOrderWithNotification(
+    id: number,
+    updates: Partial<Order>
+  ): Promise<Order> {
+    // First get the current order to check if status is changing
+    const currentOrder = await this.getOrder(id);
+    if (!currentOrder) {
+      throw new Error(`Order with id ${id} not found`);
+    }
+
+    // Update the order using the regular update method
+    const updatedOrder = await this.updateOrder(id, updates);
+
+    // If status changed, send notification
+    if (updates.status && currentOrder.status !== updates.status) {
+      try {
+        // Get user details for notification
+        const user = await this.getUser(updatedOrder.userId);
+        if (user && user.email) {
+          await this.notificationService.sendOrderStatusUpdate(
+            user.email,
+            user.displayName || "User",
+            {
+              orderId: updatedOrder.orderId,
+              projectName: updatedOrder.projectName,
+              status: updatedOrder.status,
+              previousStatus: currentOrder.status,
+              reason:
+                updates.failureReason ||
+                updates.cancellationReason ||
+                undefined,
+            },
+            user.notificationPreferences as any
+          );
+        }
+      } catch (error) {
+        console.error("Failed to send notification:", error);
+        // Don't fail the order update if notification fails
+      }
+    }
+
+    return updatedOrder;
+  }
+
   // Helper method to process order results and ensure correct typing
   private processOrderResult(order: any): Order {
     // Convert date objects to strings for compatibility with the interface

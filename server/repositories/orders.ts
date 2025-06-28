@@ -2,7 +2,8 @@
 
 import { eq, and, desc, sql } from "drizzle-orm";
 import { db } from "../db";
-import { orders, clubs } from "../../shared/schema";
+import { orders, clubs, users } from "../../shared/schema";
+import { notificationService } from "../services/NotificationService";
 
 // Define Json type consistent with other repositories
 type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
@@ -279,5 +280,95 @@ export class OrdersRepository {
       ...order,
       files: order.files as Json,
     }));
+  }
+
+  /**
+   * Update order status and send notification
+   * @param orderId The order ID
+   * @param updates The fields to update
+   * @param sendNotification Whether to send email notification (default: true)
+   * @returns The updated order
+   */
+  async updateWithNotification(
+    orderId: number,
+    updates: Partial<Order>,
+    sendNotification: boolean = true
+  ): Promise<Order> {
+    // Get the current order and user details for notification
+    let currentOrder: Order | undefined;
+    let userDetails: any;
+
+    if (sendNotification) {
+      currentOrder = await this.getById(orderId);
+      if (currentOrder) {
+        // Get user details for notification
+        const userResult = await db
+          .select({ email: users.email, displayName: users.displayName })
+          .from(users)
+          .where(eq(users.id, currentOrder.userId))
+          .limit(1);
+        userDetails = userResult[0];
+      }
+    }
+
+    // Update the order
+    const results = await db
+      .update(orders)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(orders.id, orderId))
+      .returning();
+
+    if (results.length === 0) {
+      throw new Error(`Order with ID ${orderId} not found`);
+    }
+
+    const updatedOrder = {
+      ...results[0],
+      files: results[0].files as Json,
+    };
+
+    // Send notification if status changed and notification is enabled
+    if (
+      sendNotification &&
+      currentOrder &&
+      userDetails &&
+      updates.status &&
+      updates.status !== currentOrder.status
+    ) {
+      // Get user notification preferences (we'll implement this later)
+      // For now, assume all notifications are enabled
+      const preferences = {
+        orderApproved: true,
+        orderStarted: true,
+        orderCompleted: true,
+        orderFailed: true,
+        orderCancelled: true,
+      };
+
+      // Send notification asynchronously (don't block the response)
+      notificationService
+        .sendOrderStatusUpdate(
+          userDetails.email,
+          userDetails.displayName || "User",
+          {
+            orderId: currentOrder.orderId,
+            projectName: currentOrder.projectName,
+            status: updates.status,
+            previousStatus: currentOrder.status,
+            reason:
+              updates.failureReason || updates.cancellationReason || undefined,
+          },
+          preferences
+        )
+        .catch((error) => {
+          console.error("Failed to send notification:", error);
+          // Don't throw here - notification failure shouldn't fail the order update
+        });
+    }
+
+    return updatedOrder;
   }
 }

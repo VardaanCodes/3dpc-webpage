@@ -275,7 +275,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const orderId = parseInt(req.params.id);
         const updates = req.body;
 
-        const order = await storage.updateOrder(orderId, updates);
+        const order = await storage.updateOrderWithNotification(
+          orderId,
+          updates
+        );
 
         // Create audit log
         await storage.createAuditLog({
@@ -308,7 +311,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: "Invalid order status" });
         }
 
-        const order = await storage.updateOrder(orderId, { status }); // Create audit log
+        const order = await storage.updateOrderWithNotification(orderId, {
+          status,
+        }); // Create audit log
         await storage.createAuditLog({
           userId: req.user.id,
           action: "order_status_updated",
@@ -735,8 +740,336 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
+  // Advanced Analytics endpoints
+  app.get(
+    "/api/analytics/orders/timeline",
+    requireAuth,
+    requireRole(["ADMIN", "SUPERADMIN"]),
+    async (req, res) => {
+      try {
+        const { period = "30d" } = req.query;
+        const orders = await storage.getAllOrders();
+
+        // Calculate date range
+        const now = new Date();
+        let startDate = new Date();
+        switch (period) {
+          case "7d":
+            startDate.setDate(now.getDate() - 7);
+            break;
+          case "30d":
+            startDate.setDate(now.getDate() - 30);
+            break;
+          case "90d":
+            startDate.setDate(now.getDate() - 90);
+            break;
+          case "1y":
+            startDate.setFullYear(now.getFullYear() - 1);
+            break;
+          default:
+            startDate.setDate(now.getDate() - 30);
+        }
+
+        // Group orders by date
+        const timeline = orders
+          .filter((order) => new Date(order.submittedAt || "") >= startDate)
+          .reduce((acc: any, order) => {
+            const date = new Date(order.submittedAt || "")
+              .toISOString()
+              .split("T")[0];
+            if (!acc[date]) {
+              acc[date] = { submitted: 0, completed: 0, failed: 0 };
+            }
+            acc[date].submitted++;
+            if (order.status === "finished") acc[date].completed++;
+            if (order.status === "failed" || order.status === "cancelled")
+              acc[date].failed++;
+            return acc;
+          }, {});
+
+        res.json(timeline);
+      } catch (error) {
+        res.status(500).json({ message: "Failed to get timeline analytics" });
+      }
+    }
+  );
+
+  app.get(
+    "/api/analytics/materials",
+    requireAuth,
+    requireRole(["ADMIN", "SUPERADMIN"]),
+    async (req, res) => {
+      try {
+        const orders = await storage.getAllOrders();
+
+        const materialStats = orders.reduce((acc: any, order) => {
+          const material = order.material || "Unknown";
+          const color = order.color || "Unknown";
+
+          if (!acc[material]) {
+            acc[material] = { total: 0, colors: {}, completed: 0 };
+          }
+
+          acc[material].total++;
+          if (!acc[material].colors[color]) {
+            acc[material].colors[color] = 0;
+          }
+          acc[material].colors[color]++;
+
+          if (order.status === "finished") {
+            acc[material].completed++;
+          }
+
+          return acc;
+        }, {});
+
+        res.json(materialStats);
+      } catch (error) {
+        res.status(500).json({ message: "Failed to get material analytics" });
+      }
+    }
+  );
+
+  app.get(
+    "/api/analytics/performance",
+    requireAuth,
+    requireRole(["ADMIN", "SUPERADMIN"]),
+    async (req, res) => {
+      try {
+        const orders = await storage.getAllOrders();
+
+        // Calculate processing times for completed orders
+        const completedOrders = orders.filter(
+          (order) =>
+            order.status === "finished" &&
+            order.submittedAt &&
+            order.actualCompletionTime
+        );
+
+        const processingTimes = completedOrders.map((order) => {
+          const submitted = new Date(order.submittedAt!);
+          const completed = new Date(order.actualCompletionTime!);
+          return (
+            (completed.getTime() - submitted.getTime()) / (1000 * 60 * 60 * 24)
+          ); // days
+        });
+
+        const avgProcessingTime =
+          processingTimes.length > 0
+            ? processingTimes.reduce((a, b) => a + b, 0) /
+              processingTimes.length
+            : 0;
+
+        const successRate =
+          orders.length > 0
+            ? (orders.filter((o) => o.status === "finished").length /
+                orders.length) *
+              100
+            : 0;
+
+        const performance = {
+          avgProcessingTime: Number(avgProcessingTime.toFixed(2)),
+          successRate: Number(successRate.toFixed(2)),
+          totalProcessed: completedOrders.length,
+          totalFailed: orders.filter(
+            (o) => o.status === "failed" || o.status === "cancelled"
+          ).length,
+          processingTimeDistribution: {
+            "0-2 days": processingTimes.filter((t) => t <= 2).length,
+            "2-5 days": processingTimes.filter((t) => t > 2 && t <= 5).length,
+            "5-10 days": processingTimes.filter((t) => t > 5 && t <= 10).length,
+            "10+ days": processingTimes.filter((t) => t > 10).length,
+          },
+        };
+
+        res.json(performance);
+      } catch (error) {
+        res
+          .status(500)
+          .json({ message: "Failed to get performance analytics" });
+      }
+    }
+  );
+
+  app.get(
+    "/api/analytics/export/csv",
+    requireAuth,
+    requireRole(["ADMIN", "SUPERADMIN"]),
+    async (req, res) => {
+      try {
+        const { type = "orders", period = "30d" } = req.query;
+
+        if (type === "orders") {
+          const orders = await storage.getAllOrders();
+
+          // Calculate date range
+          const now = new Date();
+          let startDate = new Date();
+          switch (period) {
+            case "7d":
+              startDate.setDate(now.getDate() - 7);
+              break;
+            case "30d":
+              startDate.setDate(now.getDate() - 30);
+              break;
+            case "90d":
+              startDate.setDate(now.getDate() - 90);
+              break;
+            case "1y":
+              startDate.setFullYear(now.getFullYear() - 1);
+              break;
+            default:
+              startDate.setDate(now.getDate() - 30);
+          }
+
+          const filteredOrders = orders.filter(
+            (order) => new Date(order.submittedAt || "") >= startDate
+          );
+
+          // Convert to CSV
+          const csvHeaders = [
+            "Order ID",
+            "Project Name",
+            "User Email",
+            "Club",
+            "Status",
+            "Material",
+            "Color",
+            "Submitted At",
+            "Completion Time",
+            "Processing Days",
+          ].join(",");
+
+          const csvRows = await Promise.all(
+            filteredOrders.map(async (order) => {
+              const user = await storage.getUser(order.userId);
+              const club = order.clubId
+                ? await storage.getClub(order.clubId)
+                : null;
+
+              const processingDays =
+                order.submittedAt && order.actualCompletionTime
+                  ? (
+                      (new Date(order.actualCompletionTime).getTime() -
+                        new Date(order.submittedAt).getTime()) /
+                      (1000 * 60 * 60 * 24)
+                    ).toFixed(2)
+                  : "";
+
+              return [
+                order.orderId,
+                `"${order.projectName}"`,
+                user?.email || "",
+                club?.name || "",
+                order.status,
+                order.material || "",
+                order.color || "",
+                order.submittedAt || "",
+                order.actualCompletionTime || "",
+                processingDays,
+              ].join(",");
+            })
+          );
+
+          const csv = [csvHeaders, ...csvRows].join("\n");
+
+          res.setHeader("Content-Type", "text/csv");
+          res.setHeader(
+            "Content-Disposition",
+            `attachment; filename="orders_${period}_${
+              new Date().toISOString().split("T")[0]
+            }.csv"`
+          );
+          res.send(csv);
+        } else {
+          res.status(400).json({ message: "Invalid export type" });
+        }
+      } catch (error) {
+        res.status(500).json({ message: "Failed to export data" });
+      }
+    }
+  );
+
   // Add files routes
   app.use("/api/files", filesRoutes);
+
+  // Notification preferences routes
+  app.get(
+    "/api/user/notification-preferences",
+    requireAuth,
+    async (req, res) => {
+      try {
+        if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+
+        const user = await storage.getUser(req.user.id);
+        if (!user) {
+          return res.status(404).json({ message: "User not found" });
+        }
+
+        // Default preferences if none set
+        const defaultPreferences = {
+          orderApproved: true,
+          orderStarted: true,
+          orderCompleted: true,
+          orderFailed: true,
+          orderCancelled: true,
+        };
+
+        const preferences = user.notificationPreferences || defaultPreferences;
+        res.json(preferences);
+      } catch (error) {
+        res.status(500).json({ message: "Internal server error" });
+      }
+    }
+  );
+
+  app.put(
+    "/api/user/notification-preferences",
+    requireAuth,
+    async (req, res) => {
+      try {
+        if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+
+        const preferences = req.body;
+
+        // Validate preferences structure
+        const validKeys = [
+          "orderApproved",
+          "orderStarted",
+          "orderCompleted",
+          "orderFailed",
+          "orderCancelled",
+        ];
+        for (const key of validKeys) {
+          if (typeof preferences[key] !== "boolean") {
+            return res
+              .status(400)
+              .json({ message: `Invalid preference value for ${key}` });
+          }
+        }
+
+        const updatedUser = await storage.updateUser(req.user.id, {
+          notificationPreferences: preferences,
+        });
+
+        // Create audit log
+        await storage.createAuditLog({
+          userId: req.user.id,
+          action: "notification_preferences_updated",
+          entityType: "user",
+          entityId: req.user.id.toString(),
+          details: preferences,
+          reason: null,
+        });
+
+        res.json(preferences);
+      } catch (error) {
+        res
+          .status(400)
+          .json({ message: "Failed to update notification preferences" });
+      }
+    }
+  );
 
   const httpServer = createServer(app);
   return httpServer;

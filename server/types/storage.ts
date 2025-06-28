@@ -28,6 +28,10 @@ export interface IStorage {
     order: Omit<Order, "id" | "submittedAt" | "updatedAt">
   ): Promise<Order>;
   updateOrder(id: number, updates: Partial<Order>): Promise<Order>;
+  updateOrderWithNotification(
+    id: number,
+    updates: Partial<Order>
+  ): Promise<Order>;
 
   // Audit log operations
   createAuditLog(log: Omit<AuditLog, "id" | "timestamp">): Promise<AuditLog>;
@@ -43,4 +47,8 @@ export interface IStorage {
     value: any,
     updatedBy: number
   ): Promise<SystemConfig>;
+
+  // File operations
+  getFileById(id: string): Promise<{ data: Blob; metadata: any } | null>;
+  deleteFile(id: string, orderId?: number): Promise<boolean>;
 }

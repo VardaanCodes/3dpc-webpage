@@ -23,6 +23,7 @@ import {
   LogOut,
   Menu,
   ChevronDown,
+  Settings,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -43,6 +44,7 @@ export function Navigation() {
     { path: "/queue", label: "Queue Status", icon: List },
     { path: "/guidelines", label: "Guidelines", icon: Book },
     { path: "/contact", label: "Contact", icon: Mail },
+    { path: "/settings", label: "Settings", icon: Settings },
   ];
 
   // For elevated users - core navigation items (always visible as tabs)
@@ -53,6 +55,7 @@ export function Navigation() {
     { path: "/submit", label: "Submit Print", icon: Plus },
     { path: "/guidelines", label: "Guidelines", icon: Book },
     { path: "/contact", label: "Contact", icon: Mail },
+    { path: "/settings", label: "Settings", icon: Settings },
   ];
 
   // Add admin panel for admin/superadmin/guest users

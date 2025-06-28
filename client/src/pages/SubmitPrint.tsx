@@ -115,12 +115,14 @@ export function SubmitPrint() {
 
     // Get only successfully uploaded files
     const uploadedFiles = files
-      .filter(file => file.uploadStatus === 'completed' && file.uploadedFileId)
-      .map(file => ({
+      .filter(
+        (file) => file.uploadStatus === "completed" && file.uploadedFileId
+      )
+      .map((file) => ({
         id: file.uploadedFileId,
         fileName: file.name,
         size: file.size,
-        contentType: file.type
+        contentType: file.type,
       }));
 
     if (files.length > 0 && uploadedFiles.length === 0) {
