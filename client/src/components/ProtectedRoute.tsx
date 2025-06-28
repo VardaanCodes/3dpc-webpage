@@ -15,10 +15,13 @@ export function ProtectedRoute({
 }: ProtectedRouteProps) {
   const { firebaseUser, user, loading } = useAuth();
   const [, setLocation] = useLocation();
-
   useEffect(() => {
     if (!loading && !firebaseUser && !user) {
-      setLocation("/login");
+      // Add a small delay to prevent rapid redirects
+      const timer = setTimeout(() => {
+        setLocation("/login");
+      }, 100);
+      return () => clearTimeout(timer);
     }
   }, [loading, firebaseUser, user, setLocation]);
 

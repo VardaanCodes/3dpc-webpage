@@ -106,12 +106,52 @@ export const insertClubSchema = createInsertSchema(clubs).omit({
   createdAt: true,
 });
 
-export const insertOrderSchema = createInsertSchema(orders).omit({
-  id: true,
-  orderId: true,
-  submittedAt: true,
-  updatedAt: true,
-});
+export const insertOrderSchema = createInsertSchema(orders)
+  .omit({
+    id: true,
+    orderId: true,
+    submittedAt: true,
+    updatedAt: true,
+  })
+  .extend({
+    files: z.any().optional().default([]),
+    eventDeadline: z
+      .union([z.string(), z.date()])
+      .optional()
+      .nullable()
+      .transform((val) => {
+        if (!val) return null;
+        if (typeof val === "string") {
+          const date = new Date(val);
+          return isNaN(date.getTime()) ? null : date;
+        }
+        return val;
+      }),
+    estimatedCompletionTime: z
+      .union([z.string(), z.date()])
+      .optional()
+      .nullable()
+      .transform((val) => {
+        if (!val) return null;
+        if (typeof val === "string") {
+          const date = new Date(val);
+          return isNaN(date.getTime()) ? null : date;
+        }
+        return val;
+      }),
+    actualCompletionTime: z
+      .union([z.string(), z.date()])
+      .optional()
+      .nullable()
+      .transform((val) => {
+        if (!val) return null;
+        if (typeof val === "string") {
+          const date = new Date(val);
+          return isNaN(date.getTime()) ? null : date;
+        }
+        return val;
+      }),
+  });
 
 export const insertBatchSchema = createInsertSchema(batches).omit({
   id: true,
@@ -129,8 +169,35 @@ export const insertSystemConfigSchema = createInsertSchema(systemConfig).omit({
   updatedAt: true,
 });
 
+// Select schemas and types
 export const selectUserSchema = createSelectSchema(users);
+export const selectClubSchema = createSelectSchema(clubs);
+export const selectOrderSchema = createSelectSchema(orders).extend({
+  eventDeadline: z.string().nullable(),
+  estimatedCompletionTime: z.string().nullable(),
+  actualCompletionTime: z.string().nullable(),
+  submittedAt: z.string().nullable(),
+  updatedAt: z.string().nullable(),
+});
+export const selectBatchSchema = createSelectSchema(batches);
+export const selectAuditLogSchema = createSelectSchema(auditLogs);
+export const selectSystemConfigSchema = createSelectSchema(systemConfig);
+
+// Type exports
 export type User = z.infer<typeof selectUserSchema>;
+export type Club = z.infer<typeof selectClubSchema>;
+export type Order = z.infer<typeof selectOrderSchema>;
+export type Batch = z.infer<typeof selectBatchSchema>;
+export type AuditLog = z.infer<typeof selectAuditLogSchema>;
+export type SystemConfig = z.infer<typeof selectSystemConfigSchema>;
+
+// Insert types
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type InsertClub = z.infer<typeof insertClubSchema>;
+export type InsertOrder = z.infer<typeof insertOrderSchema>;
+export type InsertBatch = z.infer<typeof insertBatchSchema>;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+export type InsertSystemConfig = z.infer<typeof insertSystemConfigSchema>;
 
 // Enums for type safety
 export const UserRole = z.enum(["USER", "ADMIN", "SUPERADMIN", "GUEST"]);
@@ -151,3 +218,10 @@ export const BatchStatus = {
   STARTED: "started",
   FINISHED: "finished",
 } as const;
+
+// Special types for API responses
+export type OrderWithDetails = Order & {
+  club?: Club;
+  user?: User;
+  batch?: Batch;
+};

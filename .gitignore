@@ -6,3 +6,8 @@ server/public
 vite.config.ts.*
 *.tar.gz
 serviceAccountKey.json
+netlify/functions/server/serviceAccountKey.json
+.netlify
+attached_assets/.obsidian/
+attached_assets/.smart-env/
+**/node_modules/

@@ -1,3 +1,5 @@
+/** @format */
+
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "url";
@@ -11,14 +13,30 @@ export default defineConfig({
   envDir: "..", // Look for .env file in the parent directory
   build: {
     outDir: "../dist/client",
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          firebase: ["firebase/app", "firebase/auth"],
+          "react-query": ["@tanstack/react-query"],
+          "ui-vendor": [
+            "lucide-react",
+            "@radix-ui/react-slot",
+            "class-variance-authority",
+            "clsx",
+            "tailwind-merge",
+          ],
+          "react-vendor": ["react", "react-dom", "wouter"],
+        },
+      },
+    },
   },
   plugins: [react()],
   server: {
     host: "localhost",
     port: 5000,
     proxy: {
-      '/api': {
-        target: 'http://localhost:5001',
+      "/api": {
+        target: "http://localhost:5001",
         changeOrigin: true,
       },
     },
@@ -27,6 +45,6 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./client/src"),
       "@shared": path.resolve(__dirname, "./shared"),
-    }
-  }
+    },
+  },
 });

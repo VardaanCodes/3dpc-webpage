@@ -1,3 +1,5 @@
+/** @format */
+
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -6,15 +8,36 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { FileUpload } from "@/components/FileUpload";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { type Club } from "@shared/schema";
 import { Layers, Users, User, Calendar, Palette, FileText } from "lucide-react";
+import ReactSelect from "react-select";
 
 const submitPrintSchema = z.object({
   clubId: z.number().optional(),
@@ -42,21 +65,31 @@ export function SubmitPrint() {
       providingFilament: false,
     },
   });
+  // Query for all clubs (always enabled)
+  const { data: allClubs = [] } = useQuery<Club[]>({
+    queryKey: ["/api/clubs"],
+  });
 
-  const { data: clubs = [] } = useQuery<Club[]>({
+  // Query for filtered clubs when searching
+  const { data: filteredClubs = [] } = useQuery<Club[]>({
     queryKey: ["/api/clubs/search", clubSearch],
     enabled: clubSearch.length > 0,
   });
-
   const submitMutation = useMutation({
-    mutationFn: async (data: SubmitPrintForm & { files: any[] }) => {
+    mutationFn: async (
+      data: Omit<SubmitPrintForm, "eventDeadline"> & {
+        eventDeadline?: string; // Accept string in YYYY-MM-DD format
+        files: any[];
+      }
+    ) => {
       const response = await apiRequest("POST", "/api/orders", data);
       return response.json();
     },
     onSuccess: () => {
       toast({
         title: "Print request submitted!",
-        description: "Your print request has been submitted and is awaiting approval.",
+        description:
+          "Your print request has been submitted and is awaiting approval.",
       });
       form.reset();
       setFiles([]);
@@ -70,31 +103,54 @@ export function SubmitPrint() {
       });
     },
   });
-
   const onSubmit = (data: SubmitPrintForm) => {
-    if (files.length === 0) {
+    // Convert eventDeadline to YYYY-MM-DD if present
+    let eventDeadline: string | undefined = undefined;
+    if (data.eventDeadline) {
+      const d = new Date(data.eventDeadline);
+      if (!isNaN(d.getTime())) {
+        eventDeadline = d.toISOString().slice(0, 10); // YYYY-MM-DD
+      }
+    }
+
+    // Get only successfully uploaded files
+    const uploadedFiles = files
+      .filter(
+        (file) => file.uploadStatus === "completed" && file.uploadedFileId
+      )
+      .map((file) => ({
+        id: file.uploadedFileId,
+        fileName: file.name,
+        size: file.size,
+        contentType: file.type,
+      }));
+
+    if (files.length > 0 && uploadedFiles.length === 0) {
       toast({
-        title: "No files uploaded",
-        description: "Please upload at least one file before submitting.",
+        title: "File upload incomplete",
+        description: "Please wait for all files to upload before submitting.",
         variant: "destructive",
       });
       return;
     }
 
-    const fileMetadata = files.map(f => ({
-      name: f.name,
-      size: f.size,
-      type: f.type,
-    }));
-
-    submitMutation.mutate({ ...data, files: fileMetadata });
+    submitMutation.mutate({
+      ...data,
+      files: uploadedFiles,
+      eventDeadline,
+    });
   };
 
   return (
     <div className="space-y-8">
       <div className="mb-8">
-        <h2 className="text-3xl font-bold text-white mb-2">Submit a Print Request</h2>
-        <p className="text-gray-400">Fill out the form below to submit your 3D printing request to the queue.</p>
+        <h2 className="text-3xl font-bold text-white mb-2">
+          Submit a Print Request
+        </h2>
+        <p className="text-gray-400">
+          Fill out the form below to submit your 3D printing request to the
+          queue.
+        </p>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-8">
@@ -102,11 +158,17 @@ export function SubmitPrint() {
         <Card className="bg-slate-800 border-slate-700">
           <CardHeader>
             <CardTitle className="text-white">Print Request Details</CardTitle>
-            <CardDescription>Provide information about your print request</CardDescription>
+            <CardDescription>
+              Provide information about your print request
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="space-y-6"
+              >
+                {" "}
                 {/* Club/Team Selection */}
                 <FormField
                   control={form.control}
@@ -118,40 +180,80 @@ export function SubmitPrint() {
                         Club/Team Name
                       </FormLabel>
                       <FormControl>
-                        <div className="relative">
-                          <Input
-                            placeholder="Start typing to search clubs..."
-                            value={clubSearch}
-                            onChange={(e) => setClubSearch(e.target.value)}
-                            className="bg-slate-900 border-slate-600 text-white placeholder-gray-400"
+                        <div className="bg-slate-900 rounded-md border border-slate-600">
+                          <ReactSelect
+                            placeholder="Search for a club..."
+                            options={allClubs.map((club) => ({
+                              value: club.id,
+                              label: club.name,
+                            }))}
+                            onInputChange={(inputValue) => {
+                              setClubSearch(inputValue);
+                            }}
+                            onChange={(selectedOption) => {
+                              field.onChange(selectedOption?.value);
+                            }}
+                            value={
+                              field.value
+                                ? allClubs
+                                    .filter((club) => club.id === field.value)
+                                    .map((club) => ({
+                                      value: club.id,
+                                      label: club.name,
+                                    }))[0]
+                                : null
+                            }
+                            classNames={{
+                              control: () =>
+                                "bg-slate-900 border-slate-600 text-gray-100 min-h-10",
+                              menu: () =>
+                                "bg-slate-800 border border-slate-600",
+                              option: ({ isFocused, isSelected }) =>
+                                `${isFocused ? "bg-slate-700" : ""} ${
+                                  isSelected ? "bg-slate-600 text-white" : ""
+                                } text-gray-100`,
+                              placeholder: () => "text-gray-400",
+                              input: () => "text-gray-100",
+                              singleValue: () => "text-white",
+                            }}
+                            styles={{
+                              control: (base) => ({
+                                ...base,
+                                backgroundColor: "#0f172a",
+                                borderColor: "#334155",
+                                color: "#f1f5f9",
+                              }),
+                              menu: (base) => ({
+                                ...base,
+                                backgroundColor: "#1e293b",
+                                borderColor: "#334155",
+                              }),
+                              option: (base, state) => ({
+                                ...base,
+                                backgroundColor: state.isSelected
+                                  ? "#334155"
+                                  : state.isFocused
+                                  ? "#475569"
+                                  : "#1e293b",
+                                color: state.isSelected ? "#ffffff" : "#f1f5f9",
+                              }),
+                              input: (base) => ({ ...base, color: "#ffffff" }),
+                              singleValue: (base) => ({
+                                ...base,
+                                color: "#ffffff",
+                              }),
+                            }}
                           />
-                          {clubs.length > 0 && clubSearch && (
-                            <div className="absolute z-10 w-full mt-1 bg-slate-800 border border-slate-600 rounded-md shadow-lg">
-                              {clubs.map((club) => (
-                                <button
-                                  key={club.id}
-                                  type="button"
-                                  className="w-full px-4 py-2 text-left text-white hover:bg-slate-700 transition-colors"
-                                  onClick={() => {
-                                    field.onChange(club.id);
-                                    setClubSearch(club.name);
-                                  }}
-                                >
-                                  {club.name}
-                                </button>
-                              ))}
-                            </div>
-                          )}
                         </div>
                       </FormControl>
                       <FormDescription>
-                        If your club isn't listed, continue typing to add a new one
+                        Select your club or team from the dropdown. If you can't
+                        find your club, please contact us from the contact page.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-
                 {/* Project/Event Name */}
                 <FormField
                   control={form.control}
@@ -159,7 +261,6 @@ export function SubmitPrint() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-gray-300 flex items-center">
-                        <FileText className="mr-2 h-4 w-4" />
                         Project/Event Name
                       </FormLabel>
                       <FormControl>
@@ -173,7 +274,6 @@ export function SubmitPrint() {
                     </FormItem>
                   )}
                 />
-
                 {/* Event Deadline */}
                 <FormField
                   control={form.control}
@@ -195,7 +295,6 @@ export function SubmitPrint() {
                     </FormItem>
                   )}
                 />
-
                 {/* Material and Color */}
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
@@ -203,8 +302,13 @@ export function SubmitPrint() {
                     name="material"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-gray-300">Material</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormLabel className="text-gray-300">
+                          Material
+                        </FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger className="bg-slate-900 border-slate-600 text-white">
                               <SelectValue />
@@ -215,7 +319,9 @@ export function SubmitPrint() {
                             <SelectItem value="ABS">ABS</SelectItem>
                             <SelectItem value="PETG">PETG</SelectItem>
                             <SelectItem value="TPU">TPU</SelectItem>
-                            <SelectItem value="Custom">Custom (Provide own)</SelectItem>
+                            <SelectItem value="Custom">
+                              Custom (Provide own)
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -229,18 +335,25 @@ export function SubmitPrint() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className="text-gray-300">Color</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger className="bg-slate-900 border-slate-600 text-white">
                               <SelectValue />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="White">White (Default)</SelectItem>
+                            <SelectItem value="White">
+                              White (Default)
+                            </SelectItem>
                             <SelectItem value="Black">Black</SelectItem>
                             <SelectItem value="Red">Red</SelectItem>
                             <SelectItem value="Blue">Blue</SelectItem>
-                            <SelectItem value="Custom">Custom (Provide own)</SelectItem>
+                            <SelectItem value="Custom">
+                              Custom (Provide own)
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -248,7 +361,6 @@ export function SubmitPrint() {
                     )}
                   />
                 </div>
-
                 {/* Filament Provision */}
                 <FormField
                   control={form.control}
@@ -268,7 +380,9 @@ export function SubmitPrint() {
                             I will provide my own filament
                           </FormLabel>
                           <FormDescription>
-                            Required for non-default material/color combinations. Must be delivered before printing begins.
+                            Required for non-default material/color
+                            combinations. Must be delivered before printing
+                            begins.
                           </FormDescription>
                         </div>
                       </div>
@@ -276,14 +390,15 @@ export function SubmitPrint() {
                     </FormItem>
                   )}
                 />
-
                 {/* Special Instructions */}
                 <FormField
                   control={form.control}
                   name="specialInstructions"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-gray-300">Special Instructions</FormLabel>
+                      <FormLabel className="text-gray-300">
+                        Special Instructions
+                      </FormLabel>
                       <FormControl>
                         <Textarea
                           placeholder="Any special requirements, infill percentage, support structures, etc."
@@ -296,7 +411,6 @@ export function SubmitPrint() {
                     </FormItem>
                   )}
                 />
-
                 {/* Submit Button */}
                 <Button
                   type="submit"
@@ -304,7 +418,9 @@ export function SubmitPrint() {
                   disabled={submitMutation.isPending}
                 >
                   <Layers className="mr-2 h-4 w-4" />
-                  {submitMutation.isPending ? "Submitting..." : "Submit Print Request"}
+                  {submitMutation.isPending
+                    ? "Submitting..."
+                    : "Submit Print Request"}
                 </Button>
               </form>
             </Form>
@@ -316,7 +432,9 @@ export function SubmitPrint() {
           <Card className="bg-slate-800 border-slate-700">
             <CardHeader>
               <CardTitle className="text-white">Upload Files</CardTitle>
-              <CardDescription>Upload your 3D model files for printing</CardDescription>
+              <CardDescription>
+                Upload your 3D model files for printing
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <FileUpload onFilesChange={setFiles} />

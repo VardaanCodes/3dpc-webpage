@@ -1,8 +1,8 @@
+<!-- @format -->
+
 # 3DPC Print Queue Management Website
 
 A comprehensive platform for managing 3D printing requests, queues, and administration in educational and club settings. This system streamlines the workflow for students, club members, and administrators, ensuring transparency, accountability, and efficiency in 3D printing operations.
-
-
 
 ## Table of Contents
 
@@ -13,8 +13,6 @@ A comprehensive platform for managing 3D printing requests, queues, and administ
 - [Code of Conduct](#code-of-conduct)
 - [License](#license)
 - [Acknowledgements](#acknowledgements)
-
-
 
 ## Features
 
@@ -27,25 +25,21 @@ A comprehensive platform for managing 3D printing requests, queues, and administ
 - **File Management:** Secure file uploads and downloads with access controls.
 - **Customizable Workflows:** Support for club-specific rules, printer configurations, and approval processes.
 
-
-
 ## User Roles
 
 - **Student:** Submit and track print requests, view status, and receive notifications.
 - **Club Admin:** Approve, reject, or manage print jobs for their club; manage club printers and members.
 - **Super Admin:** Oversee all clubs, manage global settings, users, printers, and handle escalations.
 
-
-
 ## Tech Stack
 
 - **Frontend:** React, Vite, Tailwind CSS
-- **Backend:** Node.js, Express
-- **Database & Auth:** Firebase
-- **Other:** TypeScript, Drizzle ORM, PostCSS
-
-
-
+- **Backend:** Node.js, Express as Netlify Functions
+- **Authentication:** Firebase Authentication with Google OAuth
+- **Database:** Netlify Neon PostgreSQL (serverless Postgres)
+- **File Storage:** Netlify Blobs for secure file storage
+- **ORM:** Drizzle ORM for type-safe database access
+- **Other:** TypeScript, PostCSS
 
 ## Contributing
 
@@ -53,25 +47,17 @@ We welcome contributions from the community! Please read our [Code of Conduct](C
 
 We would really be grateful if you can create PRs to eradicate any vulnerabilities in the site.
 
-
-
 ## Code of Conduct
 
 All participants are expected to uphold our [Code of Conduct](CODE_OF_CONDUCT.md) to foster a welcoming and respectful environment.
-
-
 
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
 
-
-
 ## Acknowledgements
 
 - Developed and maintained by the 3DPC team.
 - Special thanks to all contributors and testers.
-
-
 
 > This site is powered by Netlify.

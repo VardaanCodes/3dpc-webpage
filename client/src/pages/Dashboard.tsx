@@ -6,6 +6,7 @@ import { QueueStatus } from "./QueueStatus";
 import { Guidelines } from "./Guidelines";
 import { Contact } from "./Contact";
 import { AdminDashboard } from "./AdminDashboard";
+import { UserSettings } from "./UserSettings";
 import { useAuth } from "@/components/AuthProvider";
 
 export function Dashboard() {
@@ -22,6 +23,8 @@ export function Dashboard() {
         return <Guidelines />;
       case "/contact":
         return <Contact />;
+      case "/settings":
+        return <UserSettings />;
       case "/admin":
         if (user?.role === "admin" || user?.role === "superadmin") {
           return <AdminDashboard />;
