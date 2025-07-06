@@ -4,6 +4,7 @@
 const express = require("express");
 const serverless = require("serverless-http");
 const session = require("express-session");
+const multer = require("multer");
 
 // Create Express app
 const app = express();
@@ -1443,6 +1444,311 @@ app.patch(
     }
   }
 );
+
+// File upload routes implementation
+const multer = require("multer");
+const { v4: uuid } = require("uuid");
+const { getStore } = require("@netlify/blobs");
+
+// Set up multer for in-memory file storage
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50 MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Check allowed file types
+    const allowedTypes = [
+      "application/vnd.ms-pki.stl",
+      "application/object",
+      "model/stl",
+      "application/gcode",
+      "text/plain",
+      "application/octet-stream",
+    ];
+
+    const allowedExtensions = [".stl", ".gcode", ".obj"];
+    const fileExtension =
+      "." + file.originalname.split(".").pop()?.toLowerCase();
+
+    if (
+      allowedTypes.includes(file.mimetype) ||
+      allowedExtensions.includes(fileExtension)
+    ) {
+      cb(null, true);
+    } else {
+      cb(
+        new Error(`File type not supported: ${file.mimetype || fileExtension}`),
+        false
+      );
+    }
+  },
+});
+
+// File upload endpoint
+app.post(
+  "/api/files/upload",
+  requireAuth,
+  upload.single("file"),
+  async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const file = req.file;
+      const { orderId } = req.body;
+      const email = req.user.email;
+
+      if (!file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      // Get user ID from database based on email
+      const database = await initializeDatabase();
+      const { users, orders } = require("./schema.js");
+      const { eq } = require("drizzle-orm");
+
+      const userResult = await database
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      if (!userResult.length) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const userDbId = userResult[0].id;
+
+      // Upload file using Netlify Blobs
+      const fileId = uuid();
+      const createdAt = new Date();
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+
+      const fileMetadata = {
+        id: fileId,
+        fileName: file.originalname,
+        contentType:
+          file.mimetype || `application/${file.originalname.split(".").pop()}`,
+        size: file.size,
+        uploadedBy: userDbId,
+        orderId: orderId ? parseInt(orderId, 10) : undefined,
+        createdAt,
+        expiresAt,
+      };
+
+      // Upload to Netlify Blobs
+      const blobStore = getStore("file-uploads");
+      await blobStore.set(fileId, file.buffer, {
+        metadata: {
+          fileName: file.originalname,
+          contentType: file.mimetype,
+          size: file.size.toString(),
+          uploadedBy: userDbId.toString(),
+          orderId: orderId?.toString(),
+          createdAt: createdAt.toISOString(),
+          expiresAt: expiresAt.toISOString(),
+        },
+      });
+
+      // If file is associated with an order, update the order's files field
+      if (orderId) {
+        const orderResult = await database
+          .select({ files: orders.files })
+          .from(orders)
+          .where(eq(orders.id, parseInt(orderId, 10)))
+          .limit(1);
+
+        if (orderResult.length > 0) {
+          const currentFiles = orderResult[0].files || [];
+          const updatedFiles = [...currentFiles, fileMetadata];
+
+          await database
+            .update(orders)
+            .set({
+              files: updatedFiles,
+              updatedAt: new Date(),
+            })
+            .where(eq(orders.id, parseInt(orderId, 10)));
+        }
+      }
+
+      res.json({
+        message: "File uploaded successfully",
+        file: fileMetadata,
+      });
+    } catch (error) {
+      console.error("File upload error:", error);
+      res.status(500).json({
+        error: "File upload failed",
+        details: error.message,
+      });
+    }
+  }
+);
+
+// File download endpoint
+app.get("/api/files/download/:id", requireAuth, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const { id } = req.params;
+    const userId = req.user.id;
+    const role = req.user.role;
+
+    // Get file metadata from Netlify Blobs
+    const blobStore = getStore("file-uploads");
+    const result = await blobStore.getWithMetadata(id);
+
+    if (!result || !result.data) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    const fileMetadata = result.metadata;
+
+    // Check permissions - user must own the file or be admin
+    const fileUploadedBy = parseInt(fileMetadata.uploadedBy);
+    if (
+      fileUploadedBy !== userId &&
+      !["ADMIN", "SUPERADMIN"].includes(role?.toUpperCase() || "")
+    ) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // Check if file has an associated order
+    if (fileMetadata.orderId) {
+      const database = await initializeDatabase();
+      const { orders } = require("./schema.js");
+      const { eq } = require("drizzle-orm");
+
+      const orderResult = await database
+        .select()
+        .from(orders)
+        .where(eq(orders.id, parseInt(fileMetadata.orderId)))
+        .limit(1);
+
+      if (orderResult.length > 0) {
+        const order = orderResult[0];
+
+        // Check if user owns the order or is admin
+        if (
+          order.userId !== userId &&
+          !["ADMIN", "SUPERADMIN"].includes(role?.toUpperCase() || "")
+        ) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+
+        // Check file expiration (30 days from submission)
+        if (order.submittedAt) {
+          const submittedDate = new Date(order.submittedAt);
+          const expiryDate = new Date(submittedDate);
+          expiryDate.setDate(expiryDate.getDate() + 30);
+
+          if (new Date() > expiryDate) {
+            return res.status(410).json({
+              error: "File has expired and is no longer available for download",
+            });
+          }
+        }
+      }
+    }
+
+    // Set appropriate headers
+    res.setHeader(
+      "Content-Type",
+      fileMetadata.contentType || "application/octet-stream"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${fileMetadata.fileName}"`
+    );
+    res.setHeader("Content-Length", fileMetadata.size);
+
+    // Stream the file data
+    const fileBuffer = Buffer.from(await result.data.arrayBuffer());
+    res.send(fileBuffer);
+  } catch (error) {
+    console.error("File download error:", error);
+    res.status(500).json({
+      error: "File download failed",
+      details: error.message,
+    });
+  }
+});
+
+// File deletion endpoint
+app.delete("/api/files/:id", requireAuth, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const { id } = req.params;
+    const userId = req.user.id;
+    const role = req.user.role;
+
+    // Get file metadata first
+    const blobStore = getStore("file-uploads");
+    const metadata = await blobStore.getMetadata(id);
+
+    if (!metadata || !metadata.metadata) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    const fileMetadata = metadata.metadata;
+    const fileUploadedBy = parseInt(fileMetadata.uploadedBy);
+
+    // Check permissions
+    if (
+      fileUploadedBy !== userId &&
+      !["ADMIN", "SUPERADMIN"].includes(role?.toUpperCase() || "")
+    ) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // If file is associated with an order, remove it from the order's files field
+    if (fileMetadata.orderId) {
+      const database = await initializeDatabase();
+      const { orders } = require("./schema.js");
+      const { eq } = require("drizzle-orm");
+
+      const orderResult = await database
+        .select({ files: orders.files })
+        .from(orders)
+        .where(eq(orders.id, parseInt(fileMetadata.orderId)))
+        .limit(1);
+
+      if (orderResult.length > 0) {
+        const currentFiles = orderResult[0].files || [];
+        const updatedFiles = currentFiles.filter((file) => file.id !== id);
+
+        await database
+          .update(orders)
+          .set({
+            files: updatedFiles,
+            updatedAt: new Date(),
+          })
+          .where(eq(orders.id, parseInt(fileMetadata.orderId)));
+      }
+    }
+
+    // Delete the file from Netlify Blobs
+    await blobStore.delete(id);
+
+    res.json({ message: "File deleted successfully" });
+  } catch (error) {
+    console.error("File deletion error:", error);
+    res.status(500).json({
+      error: "File deletion failed",
+      details: error.message,
+    });
+  }
+});
 
 // Return 404 for unknown API routes
 app.use("/api/*", (req, res) => {

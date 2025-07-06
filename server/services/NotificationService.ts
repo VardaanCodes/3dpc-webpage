@@ -21,7 +21,7 @@ export class NotificationService {
   constructor() {
     // Use environment variables to configure email service
     this.emailProvider = process.env.EMAIL_PROVIDER || "resend"; // Default to Resend
-    this.apiKey = process.env.EMAIL_API_KEY || "";
+    this.apiKey = process.env.RESEND_API_KEY || "";
   }
 
   /**
