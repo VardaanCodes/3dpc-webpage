@@ -1,3 +1,5 @@
+<!-- @format -->
+
 # Netlify Blobs Configuration Guide
 
 ## 🚨 IMMEDIATE ACTION REQUIRED
@@ -7,10 +9,12 @@ If you're seeing the error "The environment has not been configured to use Netli
 ### Quick Fix Steps
 
 1. **Go to your Netlify Dashboard**
+
    - Visit [https://app.netlify.com](https://app.netlify.com)
    - Select your site (3dpc-webpage)
 
 2. **Add Environment Variables**
+
    - Go to **Site Settings** → **Environment Variables**
    - Click **Add a variable**
    - Add these two variables:
@@ -19,17 +23,19 @@ If you're seeing the error "The environment has not been configured to use Netli
    Variable 1:
    Key: NETLIFY_SITE_ID
    Value: [Your Site ID - found in Site Settings → General]
-   
+
    Variable 2:
    Key: NETLIFY_ACCESS_TOKEN
    Value: [Create a new personal access token]
    ```
 
 3. **Get Your Site ID**
+
    - In your site settings, go to **General**
    - Copy the **Site ID** (looks like: `12345678-1234-1234-1234-123456789abc`)
 
 4. **Create Access Token**
+
    - Go to **User Settings** → **Applications** → **Personal access tokens**
    - Click **New access token**
    - Name: "Blobs File Upload"
@@ -38,6 +44,7 @@ If you're seeing the error "The environment has not been configured to use Netli
    - Copy the token immediately (you won't see it again)
 
 5. **Set Environment Variables**
+
    - Back in your site's Environment Variables section
    - Add `NETLIFY_SITE_ID` with your site ID
    - Add `NETLIFY_ACCESS_TOKEN` with your access token
@@ -52,6 +59,7 @@ If you're seeing the error "The environment has not been configured to use Netli
 ### Verification
 
 After deployment, the serverless function logs should show:
+
 ```
 Initializing Netlify Blobs store: file-uploads
 Environment variables check:
@@ -69,8 +77,8 @@ When attempting to upload files, you may encounter this error:
 
 ```json
 {
-    "error": "File upload failed",
-    "details": "The environment has not been configured to use Netlify Blobs. To use it manually, supply the following properties when creating a store: siteID, token"
+  "error": "File upload failed",
+  "details": "The environment has not been configured to use Netlify Blobs. To use it manually, supply the following properties when creating a store: siteID, token"
 }
 ```
 
@@ -81,6 +89,7 @@ This error occurs because the Netlify Blobs service is not properly configured w
 ## Solution Overview
 
 Netlify Blobs requires either:
+
 1. **Automatic configuration** (when deployed on Netlify with proper context)
 2. **Manual configuration** with `siteID` and `token` parameters
 
@@ -89,12 +98,14 @@ Netlify Blobs requires either:
 ### Step 1: Get Required Values
 
 #### Get Site ID
+
 1. Go to your Netlify dashboard
 2. Select your site
 3. Go to **Site Settings** → **General**
 4. Copy the **Site ID** (format: `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
 
 #### Get Access Token
+
 1. Go to **User Settings** → **Applications** → **Personal access tokens**
 2. Click **New access token**
 3. Give it a name like "Blobs Access"
@@ -111,6 +122,7 @@ NETLIFY_ACCESS_TOKEN=your-access-token-here
 ```
 
 #### In Netlify Dashboard:
+
 1. Go to **Site Settings** → **Environment Variables**
 2. Add `NETLIFY_SITE_ID` with your site ID
 3. Add `NETLIFY_ACCESS_TOKEN` with your access token
@@ -120,6 +132,7 @@ NETLIFY_ACCESS_TOKEN=your-access-token-here
 The Netlify Blobs service needs to be configured to use these environment variables when automatic detection fails.
 
 #### In `server/netlifyBlobs.ts`:
+
 ```typescript
 private getStoreInstance() {
   // Try automatic configuration first
@@ -137,6 +150,7 @@ private getStoreInstance() {
 ```
 
 #### In serverless function:
+
 ```javascript
 // Configure Netlify Blobs with fallback
 const getBlobStore = (storeName) => {
@@ -163,23 +177,26 @@ After making these changes:
 ## Alternative Solutions
 
 ### Option 1: Use Different Storage Provider
+
 If Netlify Blobs continues to have issues, consider switching to:
+
 - **AWS S3** with presigned URLs
 - **Cloudinary** for file uploads
 - **Firebase Storage**
 
 ### Option 2: Local File Storage (Development Only)
+
 For development, you can temporarily use local file storage:
 
 ```javascript
 // Development fallback
-if (process.env.NODE_ENV === 'development') {
+if (process.env.NODE_ENV === "development") {
   // Use multer with disk storage
   const storage = multer.diskStorage({
-    destination: './uploads/',
+    destination: "./uploads/",
     filename: (req, file, cb) => {
-      cb(null, Date.now() + '-' + file.originalname);
-    }
+      cb(null, Date.now() + "-" + file.originalname);
+    },
   });
 }
 ```
@@ -196,10 +213,12 @@ if (process.env.NODE_ENV === 'development') {
 ### Common Issues
 
 1. **Invalid Site ID Format**
+
    - Ensure it's the full UUID format
    - Check it matches exactly from Netlify dashboard
 
 2. **Token Permissions**
+
    - Verify token has `sites:read` and `sites:write` scopes
    - Ensure token is not expired
 
@@ -212,9 +231,9 @@ if (process.env.NODE_ENV === 'development') {
 
 ```javascript
 // Add to your serverless function for debugging
-console.log('Site ID:', process.env.NETLIFY_SITE_ID);
-console.log('Has Token:', !!process.env.NETLIFY_ACCESS_TOKEN);
-console.log('Environment:', process.env.NODE_ENV);
+console.log("Site ID:", process.env.NETLIFY_SITE_ID);
+console.log("Has Token:", !!process.env.NETLIFY_ACCESS_TOKEN);
+console.log("Environment:", process.env.NODE_ENV);
 ```
 
 ## Implementation Priority

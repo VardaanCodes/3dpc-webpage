@@ -18,17 +18,26 @@ export class NetlifyBlobsService {
       console.log("Initializing Netlify Blobs store:", this.storeName);
       console.log("Environment variables check:");
       console.log("- NETLIFY_SITE_ID:", !!process.env.NETLIFY_SITE_ID);
-      console.log("- NETLIFY_ACCESS_TOKEN:", !!process.env.NETLIFY_ACCESS_TOKEN);
+      console.log(
+        "- NETLIFY_ACCESS_TOKEN:",
+        !!process.env.NETLIFY_ACCESS_TOKEN
+      );
       console.log("- CONTEXT:", process.env.CONTEXT);
-      
+
       const store = getStore(this.storeName);
       console.log("Netlify Blobs store initialized successfully");
       return store;
     } catch (error) {
       console.error("Failed to initialize Netlify Blobs store:", error);
-      console.error("This might be due to missing environment variables or site configuration");
-      
-      throw new Error(`Netlify Blobs configuration failed: ${error instanceof Error ? error.message : String(error)}. Please ensure NETLIFY_SITE_ID and NETLIFY_ACCESS_TOKEN are set in your environment variables.`);
+      console.error(
+        "This might be due to missing environment variables or site configuration"
+      );
+
+      throw new Error(
+        `Netlify Blobs configuration failed: ${
+          error instanceof Error ? error.message : String(error)
+        }. Please ensure NETLIFY_SITE_ID and NETLIFY_ACCESS_TOKEN are set in your environment variables.`
+      );
     }
   }
 

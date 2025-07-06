@@ -74,7 +74,7 @@ export function FileUpload({
 
       // Create headers with auth token
       const headers: Record<string, string> = {};
-      
+
       // Add Firebase ID token if user is authenticated
       const user = auth.currentUser;
       if (user) {

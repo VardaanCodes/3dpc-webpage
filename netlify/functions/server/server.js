@@ -1564,7 +1564,7 @@ const getBlobStore = (storeName) => {
     console.log("- NETLIFY_ACCESS_TOKEN:", !!process.env.NETLIFY_ACCESS_TOKEN);
     console.log("- CONTEXT:", process.env.CONTEXT);
     console.log("- DEPLOY_URL:", !!process.env.DEPLOY_URL);
-    
+
     // Try automatic configuration first
     const store = getStore(storeName);
     console.log("Netlify Blobs store initialized successfully");
@@ -1575,9 +1575,11 @@ const getBlobStore = (storeName) => {
     console.error("1. Missing environment variables");
     console.error("2. Not running in Netlify environment");
     console.error("3. Site configuration issues");
-    
+
     // For now, throw a more descriptive error
-    throw new Error(`Netlify Blobs configuration failed: ${error.message}. Please ensure environment variables are set correctly.`);
+    throw new Error(
+      `Netlify Blobs configuration failed: ${error.message}. Please ensure environment variables are set correctly.`
+    );
   }
 };
 
