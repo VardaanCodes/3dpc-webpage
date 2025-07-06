@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { apiRequest } from "@/lib/queryClient";
+import { auth } from "@/lib/firebase";
 
 interface FileData {
   id: string;
@@ -71,12 +72,28 @@ export function FileUpload({
       const formData = new FormData();
       formData.append("file", fileData.file);
 
+      // Create headers with auth token
+      const headers: Record<string, string> = {};
+      
+      // Add Firebase ID token if user is authenticated
+      const user = auth.currentUser;
+      if (user) {
+        try {
+          const idToken = await user.getIdToken();
+          headers["Authorization"] = `Bearer ${idToken}`;
+          // Add user email for debugging
+          if (user.email) {
+            headers["X-User-Email"] = user.email;
+          }
+        } catch (error) {
+          console.warn("Failed to get Firebase ID token:", error);
+        }
+      }
+
       const response = await fetch("/api/files/upload", {
         method: "POST",
         body: formData,
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`,
-        },
+        headers,
       });
 
       if (!response.ok) {
