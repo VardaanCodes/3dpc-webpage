@@ -1552,7 +1552,6 @@ app.patch(
 );
 
 // File upload routes implementation
-const multer = require("multer");
 const { v4: uuid } = require("uuid");
 const { getStore } = require("@netlify/blobs");
 
