@@ -1555,6 +1555,32 @@ app.patch(
 const { v4: uuid } = require("uuid");
 const { getStore } = require("@netlify/blobs");
 
+// Helper function to get blob store with better error handling
+const getBlobStore = (storeName) => {
+  try {
+    console.log("Attempting to initialize Netlify Blobs store:", storeName);
+    console.log("Environment check:");
+    console.log("- NETLIFY_SITE_ID:", !!process.env.NETLIFY_SITE_ID);
+    console.log("- NETLIFY_ACCESS_TOKEN:", !!process.env.NETLIFY_ACCESS_TOKEN);
+    console.log("- CONTEXT:", process.env.CONTEXT);
+    console.log("- DEPLOY_URL:", !!process.env.DEPLOY_URL);
+    
+    // Try automatic configuration first
+    const store = getStore(storeName);
+    console.log("Netlify Blobs store initialized successfully");
+    return store;
+  } catch (error) {
+    console.error("Failed to initialize Netlify Blobs store:", error.message);
+    console.error("This might be due to:");
+    console.error("1. Missing environment variables");
+    console.error("2. Not running in Netlify environment");
+    console.error("3. Site configuration issues");
+    
+    // For now, throw a more descriptive error
+    throw new Error(`Netlify Blobs configuration failed: ${error.message}. Please ensure environment variables are set correctly.`);
+  }
+};
+
 // Set up multer for in-memory file storage
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -1646,7 +1672,7 @@ app.post(
       };
 
       // Upload to Netlify Blobs
-      const blobStore = getStore("file-uploads");
+      const blobStore = getBlobStore("file-uploads");
       await blobStore.set(fileId, file.buffer, {
         metadata: {
           fileName: file.originalname,
@@ -1707,7 +1733,7 @@ app.get("/api/files/download/:id", requireAuth, async (req, res) => {
     const role = req.user.role;
 
     // Get file metadata from Netlify Blobs
-    const blobStore = getStore("file-uploads");
+    const blobStore = getBlobStore("file-uploads");
     const result = await blobStore.getWithMetadata(id);
 
     if (!result || !result.data) {
@@ -1798,7 +1824,7 @@ app.delete("/api/files/:id", requireAuth, async (req, res) => {
     const role = req.user.role;
 
     // Get file metadata first
-    const blobStore = getStore("file-uploads");
+    const blobStore = getBlobStore("file-uploads");
     const metadata = await blobStore.getMetadata(id);
 
     if (!metadata || !metadata.metadata) {
