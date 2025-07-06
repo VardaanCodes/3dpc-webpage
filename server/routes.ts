@@ -25,34 +25,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Role hierarchy for access control
   const roleHierarchy = ["GUEST", "USER", "ADMIN", "SUPERADMIN"];
 
-  const requireRole = (roles: string[]) => (req: Request, res: Response, next: NextFunction) => {
-    if (!(req as any).user || !(req as any).user.role) {
-      return res.status(403).json({ message: "Insufficient permissions" });
-    }
-    // Find the highest required role index
-    const minRequiredIndex = Math.min(
-      ...roles.map((r) => roleHierarchy.indexOf(r)).filter((i) => i !== -1)
-    );
-    const userRoleIndex = roleHierarchy.indexOf((req as any).user.role.toUpperCase());
-    if (userRoleIndex === -1 || userRoleIndex < minRequiredIndex) {
-      return res.status(403).json({ message: "Insufficient permissions" });
-    }
-    next();
-  };
+  const requireRole =
+    (roles: string[]) => (req: Request, res: Response, next: NextFunction) => {
+      if (!(req as any).user || !(req as any).user.role) {
+        return res.status(403).json({ message: "Insufficient permissions" });
+      }
+      // Find the highest required role index
+      const minRequiredIndex = Math.min(
+        ...roles.map((r) => roleHierarchy.indexOf(r)).filter((i) => i !== -1)
+      );
+      const userRoleIndex = roleHierarchy.indexOf(
+        (req as any).user.role.toUpperCase()
+      );
+      if (userRoleIndex === -1 || userRoleIndex < minRequiredIndex) {
+        return res.status(403).json({ message: "Insufficient permissions" });
+      }
+      next();
+    };
 
   // User routes
-  app.get("/api/user/profile", requireAuth, async (req: Request, res: Response) => {
-    try {
-      if (!(req as any).user) return res.status(401).json({ message: "Unauthorized" });
-      const user = await storage.getUser((req as any).user.id);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
+  app.get(
+    "/api/user/profile",
+    requireAuth,
+    async (req: Request, res: Response) => {
+      try {
+        if (!(req as any).user)
+          return res.status(401).json({ message: "Unauthorized" });
+        const user = await storage.getUser((req as any).user.id);
+        if (!user) {
+          return res.status(404).json({ message: "User not found" });
+        }
+        res.json(user);
+      } catch (error) {
+        res.status(500).json({ message: "Internal server error" });
       }
-      res.json(user);
-    } catch (error) {
-      res.status(500).json({ message: "Internal server error" });
     }
-  });
+  );
   app.post("/api/user/register", async (req, res) => {
     try {
       console.log("Registration request body:", req.body);
@@ -108,7 +116,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get system configuration for max file uploads
-      const fileUploadLimit = await storage.getSystemConfig("file_upload_limit");
+      const fileUploadLimit = await storage.getSystemConfig(
+        "file_upload_limit"
+      );
       const maxFiles = (fileUploadLimit?.value as number) || 25; // Default to 25 if not configured
 
       res.json({
@@ -378,7 +388,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     requireRole(["ADMIN", "SUPERADMIN"]),
     async (req: Request, res: Response) => {
       try {
-        if (!(req as any).user) return res.status(401).json({ message: "Unauthorized" });
+        if (!(req as any).user)
+          return res.status(401).json({ message: "Unauthorized" });
         const batchId = parseInt(req.params.id);
         const updates = req.body;
 
@@ -405,8 +416,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     requireRole(["ADMIN", "SUPERADMIN"]),
     async (req: Request, res: Response) => {
       try {
-        if (!(req as any).user) return res.status(401).json({ message: "Unauthorized" });
-        
+        if (!(req as any).user)
+          return res.status(401).json({ message: "Unauthorized" });
+
         const batchData = insertBatchSchema.parse(req.body);
         const batch = await storage.createBatch(batchData);
 
@@ -448,7 +460,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     requireRole(["ADMIN", "SUPERADMIN"]),
     async (req: Request, res: Response) => {
       try {
-        if (!(req as any).user) return res.status(401).json({ message: "Unauthorized" });
+        if (!(req as any).user)
+          return res.status(401).json({ message: "Unauthorized" });
         const user = await storage.getUser(parseInt(req.params.id));
         if (!user) {
           return res.status(404).json({ message: "User not found" });
@@ -466,7 +479,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     requireRole(["ADMIN", "SUPERADMIN"]),
     async (req: Request, res: Response) => {
       try {
-        if (!(req as any).user) return res.status(401).json({ message: "Unauthorized" });
+        if (!(req as any).user)
+          return res.status(401).json({ message: "Unauthorized" });
         const userId = parseInt(req.params.id);
         const updates = req.body;
 
@@ -488,34 +502,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Statistics routes
-  app.get("/api/stats/user", requireAuth, async (req: Request, res: Response) => {
-    try {
-      if (!(req as any).user) return res.status(401).json({ message: "Unauthorized" });
-      const orders = await storage.getUserOrders((req as any).user.id);
+  app.get(
+    "/api/stats/user",
+    requireAuth,
+    async (req: Request, res: Response) => {
+      try {
+        if (!(req as any).user)
+          return res.status(401).json({ message: "Unauthorized" });
+        const orders = await storage.getUserOrders((req as any).user.id);
 
-      const stats = {
-        pending: orders.filter(
-          (o) =>
-            o.status === OrderStatus.SUBMITTED ||
-            o.status === OrderStatus.APPROVED
-        ).length,
-        inProgress: orders.filter((o) => o.status === OrderStatus.STARTED)
-          .length,
-        completed: orders.filter((o) => o.status === OrderStatus.FINISHED)
-          .length,
-        failed: orders.filter(
-          (o) =>
-            o.status === OrderStatus.FAILED ||
-            o.status === OrderStatus.CANCELLED
-        ).length,
-        total: orders.length,
-      };
+        const stats = {
+          pending: orders.filter(
+            (o) =>
+              o.status === OrderStatus.SUBMITTED ||
+              o.status === OrderStatus.APPROVED
+          ).length,
+          inProgress: orders.filter((o) => o.status === OrderStatus.STARTED)
+            .length,
+          completed: orders.filter((o) => o.status === OrderStatus.FINISHED)
+            .length,
+          failed: orders.filter(
+            (o) =>
+              o.status === OrderStatus.FAILED ||
+              o.status === OrderStatus.CANCELLED
+          ).length,
+          total: orders.length,
+        };
 
-      res.json(stats);
-    } catch (error) {
-      res.status(500).json({ message: "Internal server error" });
+        res.json(stats);
+      } catch (error) {
+        res.status(500).json({ message: "Internal server error" });
+      }
     }
-  });
+  );
 
   app.get(
     "/api/stats/admin",
@@ -523,7 +542,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     requireRole(["ADMIN", "SUPERADMIN"]),
     async (req: Request, res: Response) => {
       try {
-        if (!(req as any).user) return res.status(401).json({ message: "Unauthorized" });
+        if (!(req as any).user)
+          return res.status(401).json({ message: "Unauthorized" });
         const orders = await storage.getAllOrders();
         const batches = await storage.getAllBatches();
 
@@ -593,7 +613,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     requireRole(["SUPERADMIN"]),
     async (req: Request, res: Response) => {
       try {
-        if (!(req as any).user) return res.status(401).json({ message: "Unauthorized" });
+        if (!(req as any).user)
+          return res.status(401).json({ message: "Unauthorized" });
         const configData = req.body;
 
         // Create or update config
@@ -615,87 +636,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // File download route with expiration check
-  app.get("/api/files/:id/download", requireAuth, async (req: Request, res: Response) => {
-    try {
-      if (!(req as any).user) return res.status(401).json({ message: "Unauthorized" });
+  app.get(
+    "/api/files/:id/download",
+    requireAuth,
+    async (req: Request, res: Response) => {
+      try {
+        if (!(req as any).user)
+          return res.status(401).json({ message: "Unauthorized" });
 
-      const fileId = req.params.id;
-      const fileData = await storage.getFileById(fileId);
+        const fileId = req.params.id;
+        const fileData = await storage.getFileById(fileId);
 
-      if (!fileData) {
-        return res.status(404).json({ message: "File not found" });
-      }
-
-      const file = fileData.metadata;
-
-      // Get the order to check expiration if file is associated with an order
-      if (file.orderId) {
-        const order = await storage.getOrder(file.orderId);
-        if (!order) {
-          return res
-            .status(404)
-            .json({ message: "Associated order not found" });
+        if (!fileData) {
+          return res.status(404).json({ message: "File not found" });
         }
 
-        // Check if user owns the order or is admin
-        if (
-          order.userId !== (req as any).user.id &&
-          !["ADMIN", "SUPERADMIN"].includes((req as any).user.role?.toUpperCase() || "")
-        ) {
-          return res.status(403).json({ message: "Access denied" });
-        }
+        const file = fileData.metadata;
 
-        // Check file expiration (default 30 days, configurable)
-        const systemConfig = await storage.getSystemConfig(
-          "file_download_days"
-        );
-        const downloadDays = (systemConfig?.value as number) || 30;
+        // Get the order to check expiration if file is associated with an order
+        if (file.orderId) {
+          const order = await storage.getOrder(file.orderId);
+          if (!order) {
+            return res
+              .status(404)
+              .json({ message: "Associated order not found" });
+          }
 
-        if (order.submittedAt) {
-          const submittedDate = new Date(order.submittedAt);
-          const expiryDate = new Date(submittedDate);
-          expiryDate.setDate(expiryDate.getDate() + downloadDays);
+          // Check if user owns the order or is admin
+          if (
+            order.userId !== (req as any).user.id &&
+            !["ADMIN", "SUPERADMIN"].includes(
+              (req as any).user.role?.toUpperCase() || ""
+            )
+          ) {
+            return res.status(403).json({ message: "Access denied" });
+          }
 
-          if (new Date() > expiryDate) {
-            return res.status(410).json({
-              message:
-                "File has expired and is no longer available for download",
-            });
+          // Check file expiration (default 30 days, configurable)
+          const systemConfig = await storage.getSystemConfig(
+            "file_download_days"
+          );
+          const downloadDays = (systemConfig?.value as number) || 30;
+
+          if (order.submittedAt) {
+            const submittedDate = new Date(order.submittedAt);
+            const expiryDate = new Date(submittedDate);
+            expiryDate.setDate(expiryDate.getDate() + downloadDays);
+
+            if (new Date() > expiryDate) {
+              return res.status(410).json({
+                message:
+                  "File has expired and is no longer available for download",
+              });
+            }
           }
         }
+
+        // Create audit log for file download
+        await storage.createAuditLog({
+          userId: (req as any).user.id,
+          action: "file_downloaded",
+          entityType: "file",
+          entityId: fileId,
+          details: {
+            fileName: file.fileName,
+            orderId: file.orderId || null,
+          } as any,
+          reason: null,
+        });
+
+        // Set headers for file download
+        res.setHeader(
+          "Content-Type",
+          file.contentType || "application/octet-stream"
+        );
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="${file.fileName}"`
+        );
+        res.setHeader("Content-Length", file.size);
+
+        // Send the file data
+        res.send(fileData.data);
+      } catch (error) {
+        console.error("File download error:", error);
+        res.status(500).json({ message: "Failed to download file" });
       }
-
-      // Create audit log for file download
-      await storage.createAuditLog({
-        userId: (req as any).user.id,
-        action: "file_downloaded",
-        entityType: "file",
-        entityId: fileId,
-        details: {
-          fileName: file.fileName,
-          orderId: file.orderId || null,
-        } as any,
-        reason: null,
-      });
-
-      // Set headers for file download
-      res.setHeader(
-        "Content-Type",
-        file.contentType || "application/octet-stream"
-      );
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="${file.fileName}"`
-      );
-      res.setHeader("Content-Length", file.size);
-
-      // Send the file data
-      res.send(fileData.data);
-    } catch (error) {
-      console.error("File download error:", error);
-      res.status(500).json({ message: "Failed to download file" });
     }
-  });
+  );
   // Admin stats endpoint
   app.get(
     "/api/stats/admin",

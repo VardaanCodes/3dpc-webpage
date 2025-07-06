@@ -129,7 +129,9 @@ export class RepositoryStorage implements IStorage {
       ...repoUser,
       suspended: repoUser.suspended ?? false,
       fileUploadsUsed: repoUser.fileUploadsUsed ?? 0,
-      notificationPreferences: this.ensureJsonType(repoUser.notificationPreferences),
+      notificationPreferences: this.ensureJsonType(
+        repoUser.notificationPreferences
+      ),
     };
   }
 
