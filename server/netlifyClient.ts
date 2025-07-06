@@ -49,9 +49,9 @@ export async function verifyNetlifyConfig(): Promise<boolean> {
  * @returns The Netlify site ID
  */
 export function getNetlifySiteId(): string {
-  const siteId = process.env.NETLIFY_SITE_ID;
+  const siteId = process.env.SITE_ID || process.env.NETLIFY_SITE_ID;
   if (!siteId) {
-    console.warn("NETLIFY_SITE_ID environment variable is not set");
+    console.warn("SITE_ID or NETLIFY_SITE_ID environment variable is not set");
   }
   return siteId || "";
 }
