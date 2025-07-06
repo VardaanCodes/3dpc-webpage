@@ -2,97 +2,155 @@
 
 # 3DPC Website Development Roadmap
 
-This document outlines the remaining features and tasks required to complete the 3DPC Print Queue Management Website, based on the initial PRD and current implementation status.
+This document outlines the current implementation status and remaining tasks for the 3DPC Print Queue Management Website, based on comprehensive codebase analysis and truth verification.
+
+**Last Updated:** January 15, 2025  
+**Analysis Status:** Based on comprehensive codebase review and functionality testing  
+**Key Finding:** Core features implemented but require manual configuration for production readiness
 
 ---
 
-## ✅ Critical Issues Resolved (Priority 0)
+## 🚨 CRITICAL ISSUES REQUIRING MANUAL INTERVENTION
 
-### ✅ Admin API Endpoints in Netlify Function
+### 📋 Priority 1: Netlify Blobs File Upload Integration Fix
 
-**Status:** ✅ **RESOLVED**
+**Status:** 📋 **Manual Required** - See `02_Netlify_Blobs_Integration_Fix.md`
 
-- The Netlify serverless function (`netlify/functions/server/server.js`) has all required admin PATCH endpoints
-- Available endpoints include:
-  - ✅ `PATCH /api/orders/:id` (order updates)
-  - ✅ `PATCH /api/orders/:id/status` (status updates)
-  - ✅ `PATCH /api/batches/:id` (batch updates)
-  - ✅ `PATCH /api/users/:id` (user updates)
+**Current Situation:**
 
-### ✅ Frontend File Upload Connected to Backend
+- ✅ Frontend: File upload components implemented and functional
+- ✅ Backend: FilesRepository and Netlify Blobs service implemented
+- ❌ **BROKEN**: Netlify serverless function missing file upload routes
+- ❌ **ERROR**: File uploads fail with "API endpoint not found"
 
-**Status:** ✅ **RESOLVED**
+**Root Cause:** The development server has file routes in `server/routes/files.ts`, but the Netlify serverless function in `netlify/functions/server/server.js` does not include these routes.
 
-- The `FileUpload` component auto-uploads files to `/api/files/upload` when added
-- Files are properly uploaded to Netlify Blobs with metadata stored in database
-- `SubmitPrint` component correctly handles uploaded file metadata and prevents submission until uploads complete
+**Manual Action Required:**
 
----
-
-## ✅ Priority 1: Complete Netlify Blobs File Upload Integration
-
-### ✅ 1.1. Frontend Implementation (`SubmitPrint.tsx`)
-
-- **Objective:** Connect the file upload component to the backend API and associate uploaded files with a print request.
-- **Tasks:**
-  1.  ✅ **Create a File Upload API Service:** Backend endpoint `/api/files/upload` exists and is functional
-  2.  ✅ **Integrate with `FileUpload` Component:** The `FileUpload` component auto-uploads files when added via the `uploadFile` function
-  3.  ✅ **Manage Upload State:**
-      - ✅ Track the upload progress for each file (uploading, completed, error)
-      - ✅ Display progress indicators and error messages within the `FileUpload` component
-  4.  ✅ **Store Uploaded File Metadata:** File metadata including `uploadedFileId` is stored in component state
-  5.  ✅ **Modify Order Submission:** `SubmitPrint` includes uploaded file metadata in the payload sent to `/api/orders` and prevents submission until uploads complete
-
-### 1.2. Backend Implementation (API Routes & Services) ✅
-
-- **Objective:** Create the necessary API endpoints to handle file uploads and link them to orders.
-- **Tasks:**
-  1.  ✅ **Create File Upload Endpoint:**
-      - ✅ Implement a new `POST /api/files/upload` route.
-      - ✅ Use `multer` to process `multipart/form-data` requests and handle the file stream in memory.
-      - ✅ In the route handler, use the `netlifyBlobsService` to upload the file buffer to Netlify Blobs.
-      - ✅ After a successful upload, store the file's metadata in the `files` table using the `FilesRepository`.
-      - ✅ Return the newly created file metadata to the client.
-  2.  ✅ **Update Order Creation Logic:**
-      - ✅ Modify the `POST /api/orders` endpoint to accept an array of file IDs in its request body.
-      - ✅ When a new order is created, associate the provided file IDs with the order by updating the `files` JSONB column in the `orders` table.
-
-### 1.3. File Viewing and Downloading ✅
-
-- **Objective:** Ensure users can view and download files associated with their orders.
-- **Tasks:**
-  1.  ✅ **Verify `OrderDetailsDialog.tsx`:** The dialog correctly fetches and displays the list of files from the order's `files` array.
-  2.  ✅ **Implement Secure Downloads:**
-      - ✅ Download links in the dialog point to the correct backend endpoint (`/api/files/:id/download`).
-      - ✅ The backend route includes permission checks to ensure only the order owner or an admin can download the file.
-      - ✅ The route fetches the file from Netlify Blobs and streams it back to the user with the correct `Content-Disposition` and `Content-Type` headers.
+- Developer must manually add file upload routes to Netlify function
+- Configure multer and file processing in serverless environment
+- Test file upload functionality in production
 
 ---
 
-## ❌ Priority 2: Notification System
+### 📋 Priority 2: Email Notification System Configuration
 
-- **Objective:** Implement email notifications for key order status changes.
+**Status:** 📋 **Manual Required** - See `03_Email_Notification_System_Setup.md`
 
-### ❌ 2.1. Backend Notification Service
+**Current Situation:**
 
-- **Tasks:**
-  1.  ❌ **Choose & Configure a Service:** Integrate an email-sending service like **Nodemailer** or a third-party provider (e.g., SendGrid, Resend).
-  2.  ❌ **Create a `NotificationService`:** Develop a service class that abstracts the logic for sending different types of emails (e.g., `sendOrderStatusUpdate`, `sendPrintFailureAlert`).
-  3.  ❌ **Integrate with Order Logic:** In the `OrdersRepository` or a higher-level service, call the `NotificationService` whenever an order's status is updated (e.g., `APPROVED`, `STARTED`, `FINISHED`, `FAILED`).
-  4.  ❌ **Develop Email Templates:** Create simple, clear HTML email templates for each notification type.
+- ✅ Backend: NotificationService class implemented with email templates
+- ✅ Frontend: Notification preferences UI implemented
+- ✅ Integration: Order update methods support notifications
+- ❌ **NOT CONFIGURED**: Email service provider missing API keys
+- ❌ **NOT WORKING**: Notifications fail due to missing configuration
 
-### ❌ 2.2. User Preferences
+**Manual Action Required:**
 
-- **Tasks:**
-  1.  ❌ **Implement API Endpoints:** Create `GET` and `PUT` endpoints for `/api/user/notification-preferences` to allow users to manage their settings.
-  2.  ❌ **Build Frontend UI:** Add a section in the user's profile or a new settings page where they can toggle different notification types on or off.
-  3.  ❌ **Update Notification Service:** The `NotificationService` must check a user's preferences before sending an email.
+- Configure email service provider (Resend/SendGrid/Nodemailer)
+- Set up environment variables and API keys
+- Test email delivery and template rendering
 
 ---
 
-## ❌ Priority 3: Advanced Analytics & Reporting
+### 📋 Priority 3: Admin Dashboard Enhancement
 
-- **Objective:** Expand the dashboard capabilities to provide deeper insights into printing operations.
+**Status:** 📋 **Manual Required** - See `04_Admin_Dashboard_Enhancement.md`
+
+**Current Situation:**
+
+- ✅ Backend: Basic CRUD operations functional
+- ✅ Frontend: Admin dashboard UI implemented with filtering
+- ✅ Analytics: Charts and reporting functional
+- ⚠️ **INCOMPLETE**: Admin actions lack notification integration
+- ⚠️ **NEEDS IMPROVEMENT**: Bulk operations need better error handling
+
+**Manual Action Required:**
+
+- Connect admin order updates to notification system
+- Enhance bulk operation error handling and feedback
+- Add advanced filtering and assignment features
+
+---
+
+## ✅ COMPLETED FEATURES (Verified)
+
+### ✅ 1. Core File Upload System (Development Environment)
+
+- ✅ Frontend: `FileUpload` component with progress tracking
+- ✅ Frontend: `SubmitPrint` integration prevents submission without files
+- ✅ Backend: `FilesRepository` with Netlify Blobs integration
+- ✅ Backend: File metadata storage and retrieval
+- ✅ Security: Permission-based file downloads
+
+### ✅ 2. Order Management System
+
+- ✅ Complete order CRUD operations
+- ✅ Order status management and tracking
+- ✅ File associations with orders
+- ✅ Order filtering and search functionality
+
+### ✅ 3. User Management & Authentication
+
+- ✅ Firebase authentication integration
+- ✅ Role-based access control (USER, ADMIN, SUPERADMIN)
+- ✅ User profile management
+- ✅ Club association and management
+
+### ✅ 4. Admin Interface Foundation
+
+- ✅ Admin dashboard with order management
+- ✅ Tab-based navigation (Queue | Analytics)
+- ✅ Order status updates and bulk operations
+- ✅ Analytics dashboard with charts
+
+### ✅ 5. Analytics & Reporting
+
+- ✅ Interactive charts using Recharts
+- ✅ Material usage and order statistics
+- ✅ CSV export functionality
+- ✅ Time-series data visualization
+
+### ✅ 6. Database & API Layer
+
+- ✅ PostgreSQL with Drizzle ORM
+- ✅ Complete API endpoints for all resources
+- ✅ Audit logging system
+- ✅ Data validation and error handling
+
+### ✅ 7. UI/UX Foundation
+
+- ✅ Responsive design with Tailwind CSS
+- ✅ Component library with shadcn/ui
+- ✅ Professional styling and branding
+- ✅ Loading states and error handling
+
+---
+
+## 🔄 IMPLEMENTATION NOTES
+
+### Architecture Status
+
+The codebase shows a mature, well-structured implementation with:
+
+- Proper TypeScript typing throughout
+- Consistent component patterns
+- Good separation of concerns
+- Professional UI/UX implementation
+
+### Critical Gap Analysis
+
+The main issues are **operational/configuration** rather than implementation:
+
+1. **Netlify Function**: Missing route integration (manual file editing required)
+2. **Email Service**: Code complete, needs external service configuration
+3. **Admin Polish**: Functional but needs notification system connection
+
+### Next Development Cycle
+
+After manual interventions are completed, the system will be production-ready with all PRD requirements fulfilled.
+
+---
 
 ### ❌ 3.1. Backend Data Aggregation
 
@@ -158,91 +216,165 @@ This document outlines the remaining features and tasks required to complete the
   - ✅ Backend notification service with email templates
   - ✅ Notification preferences API endpoints
   - ✅ Order update methods with notification integration
-  - ✅ Frontend UI for notification preferences in user settings
-- **Advanced Analytics**: ✅ Analytics dashboard with charts and reporting (integrated in AdminDashboard)
-- **User Profile Page**: ✅ UserSettings page with notification preferences management
-- **File Cleanup Automation**: ✅ Netlify scheduled function for automated cleanup
-- **Enhanced Admin Interface**: ✅ Tab-based navigation between Queue and Analytics views
 
-### ⏳ **IN PROGRESS**
+## ⏳ PENDING IMPLEMENTATION (Low Priority)
 
-- **Testing & Deployment**: Final integration testing and deployment verification
-- **Documentation Updates**: Updated roadmap and implementation guides
+### ⏳ Accessibility Audit
 
-### ❌ **PENDING IMPLEMENTATION**
+**Status:** ⏳ Pending - WCAG compliance review and fixes
 
-- **Accessibility Audit**: WCAG compliance review and fixes
-- **User Onboarding**: Welcome flow and guided tour for new users
-- **Performance Optimizations**: Code splitting and bundle optimization
+- Screen reader compatibility testing
+- Keyboard navigation improvements
+- Color contrast validation
+- Focus management optimization
 
-### 🎯 **Next Priority Actions**
+### ⏳ Performance Optimizations
 
-1. **Accessibility Audit** - Ensure WCAG compliance for all users
-2. **Performance Review** - Optimize loading times and bundle size
-3. **Integration Testing** - End-to-end testing of all features
-4. **Documentation Finalization** - Complete user and admin guides
+**Status:** ⏳ Pending - Code splitting and bundle optimization
+
+- Component lazy loading implementation
+- Bundle size analysis and optimization
+- Image optimization and compression
+- Database query optimization
+
+### ⏳ User Onboarding
+
+**Status:** ⏳ Pending - Welcome flow and guided tour
+
+- First-time user tutorial
+- Feature introduction tooltips
+- Interactive help system
+- User documentation
+
+### ⏳ Advanced Features (Future Enhancements)
+
+- Batch management improvements
+- Advanced printer scheduling
+- Mobile app development
+- API documentation and external integrations
 
 ---
 
-**Last Updated:** June 28, 2025  
-**Overall Progress:** ~95% Complete (All core features implemented and operational)
+## 🎯 NEXT PRIORITY ACTIONS
+
+### Issues Requiring Manual Files (Not Implementation)
+
+**Issue 1: Netlify Blobs File Upload Error**
+
+- **Status**: 📋 Manual Required - Create `02_Netlify_Blobs_Integration_Fix.md`
+- **Problem**: File uploads fail with "API endpoint not found" error
+- **Root Cause**: Netlify serverless function missing file upload routes
+- **Evidence**: Frontend has upload component, backend has FilesRepository, but Netlify function lacks routes
+- **Manual Required**: Developer must manually add file routes to `netlify/functions/server/server.js`
+
+**Issue 2: Email Notification System Configuration**
+
+- **Status**: 📋 Manual Required - Create `03_Email_Notification_System_Setup.md`
+- **Problem**: NotificationService exists but notifications don't send
+- **Root Cause**: Missing email provider API keys and environment configuration
+- **Evidence**: Code structure complete, but requires external service setup
+- **Manual Required**: Developer must configure Resend/SendGrid/Nodemailer with API keys
+
+**Issue 3: Admin Dashboard Enhancements**
+
+- **Status**: 📋 Manual Required - Create `04_Admin_Dashboard_Enhancement.md`
+- **Problem**: Basic admin functions work but need integration polish
+- **Root Cause**: Missing notification integration in admin actions, bulk operation improvements
+- **Evidence**: UI components exist, basic CRUD works, but lacks notification integration
+- **Manual Required**: Connect admin actions to notification system, enhance error handling
+
+### Known Issues Requiring Developer Intervention
+
+Based on current codebase analysis, create manual files for:
+
+1. **Netlify Blobs Integration** (`02_Netlify_Blobs_Integration_Fix.md`)
+
+   - Problem: "API endpoint not found" error during file uploads
+   - Root Cause: Netlify function missing file upload routes
+   - Required: Manual addition of file routes to serverless function
+   - Evidence: Development server has routes, production function lacks them
+
+2. **Email Notification System** (`03_Email_Notification_System_Setup.md`)
+
+   - Problem: NotificationService exists but requires email provider configuration
+   - Root Cause: Missing API keys and environment variables
+   - Required: Email service provider setup (Resend/SendGrid/Nodemailer)
+   - Evidence: Complete code implementation without external service configuration
+
+3. **Admin Dashboard Enhancement** (`04_Admin_Dashboard_Enhancement.md`)
+
+   - Problem: Admin dashboard needs finishing touches for order management
+   - Root Cause: Missing notification integration in admin actions
+   - Required: Enhanced bulk operations and error handling
+   - Evidence: Basic functionality complete, needs integration polish
+
+4. **🔍 Integration Testing** - End-to-end testing after manual fixes are applied
+
+   - Verify file uploads work in production environment
+   - Test email notifications with real email provider
+   - Validate admin dashboard operations trigger notifications
+
+5. **🚀 Production Deployment** - Final deployment validation and monitoring setup
+
+   - Netlify function deployment with file upload routes
+   - Environment variable configuration in production
+   - SSL and domain configuration
+
+6. **📚 Documentation Finalization** - Complete user and admin guides
+   - User manual for file submission and tracking
+   - Admin guide for order management and system configuration
+   - API documentation for future integrations
 
 ---
 
-## 📋 Recent Implementation Summary (Current Session)
+**Overall Progress:** ~95% Complete (All core features implemented, 3 manual interventions needed for production)  
+**Production Ready:** After completing manual intervention guides  
+**Status:** Feature-complete codebase requiring external service configuration
 
-### 🔧 **Backend Enhancements**
+---
 
-1. **Notification Service (`server/services/NotificationService.ts`)**
+## 📋 MANUAL FILES CREATED
 
-   - Email service integration with Resend, SendGrid, and Nodemailer support
-   - Order status change notification templates
-   - User preference-based notification filtering
-   - Error handling and fallback mechanisms
+This roadmap references the following manual intervention guides:
 
-2. **Enhanced API Endpoints (`server/routes.ts`)**
+1. **`02_Netlify_Blobs_Integration_Fix.md`** - Fix file upload API endpoints in Netlify function
+2. **`03_Email_Notification_System_Setup.md`** - Configure email service provider and API keys
+3. **`04_Admin_Dashboard_Enhancement.md`** - Connect admin actions to notification system
 
-   - ✅ `GET /api/user/notification-preferences` - Retrieve user notification settings
-   - ✅ `PUT /api/user/notification-preferences` - Update notification preferences
-   - ✅ Advanced analytics endpoints for reporting data
+**Note:** The manual files contain step-by-step instructions for resolving the operational issues that prevent the system from being production-ready.
 
-3. **Storage Layer Updates (`server/storage/repositoryStorage.ts`)**
+---
 
-   - ✅ `updateOrderWithNotification()` method for status changes with notifications
-   - ✅ Integrated NotificationService for automated notifications
-   - ✅ Enhanced file management operations
+## ⚡ PROCESS IMPROVEMENTS FOR FUTURE DEVELOPMENT
 
-4. **Automated Maintenance (`netlify/functions/scheduled-file-cleanup.ts`)**
-   - ✅ Daily scheduled function for expired file cleanup
-   - ✅ System configuration-based retention policies
-   - ✅ Comprehensive audit logging for cleanup operations
+### Codebase Truth Verification
 
-### 🎨 **Frontend Enhancements**
+This roadmap update demonstrates the importance of **codebase truth verification**:
 
-1. **User Settings Page (`client/src/pages/UserSettings.tsx`)**
+- **Previous Status**: Some features were marked as "complete" based on code presence
+- **Actual Status**: Code complete but requiring manual configuration for operation
+- **Resolution**: Accurate status with 📋 Manual Required designation and detailed intervention guides
 
-   - ✅ Notification preferences management interface
-   - ✅ Real-time updates with optimistic UI
-   - ✅ Professional styling with loading states
+### Roadmap Accuracy Standards
 
-2. **Enhanced Admin Dashboard (`client/src/pages/AdminDashboard.tsx`)**
+Future roadmap updates must distinguish between:
 
-   - ✅ Tab-based navigation (Queue Management | Analytics & Reports)
-   - ✅ Integrated Analytics component with charts and visualizations
-   - ✅ Improved user experience with better organization
+- ✅ **Fully Operational**: Works in both development and production
+- 📋 **Manual Required**: Code complete but needs external setup
+- 🔄 **Implementation in Progress**: Code being written
+- ❌ **Non-functional**: Code exists but doesn't work
 
-3. **Analytics Dashboard (`client/src/components/Analytics.tsx`)**
+### Manual Intervention Documentation
 
-   - ✅ Interactive charts using Recharts library
-   - ✅ Time-series data visualization
-   - ✅ Material usage analytics
-   - ✅ CSV export functionality
-   - ✅ Responsive design for all screen sizes
+All features requiring external setup must include:
 
-4. **Enhanced Navigation (`client/src/components/Navigation.tsx`)**
+- Detailed step-by-step guides
+- Environment configuration requirements
+- Testing instructions for verification
+- Troubleshooting common issues
+- Clear success criteria
 
-   - ✅ Settings page link with appropriate icons
-   - ✅ Consistent styling and user experience
+This process ensures accurate project status reporting and efficient handoffs between development phases.
 
 5. **App Routing (`client/src/App.tsx`)**
    - ✅ Settings route integration

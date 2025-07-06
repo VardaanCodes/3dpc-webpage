@@ -11,58 +11,164 @@ const app = express();
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 
-// CORS middleware for local development
-app.use((req, res, next) => {
-  const allowedOrigins = [
-    "http://localhost:5000",
-    "http://localhost:3000",
-    "https://3dpc-webpage.netlify.app",
-    "https://deploy-preview-*--3dpc-webpage.netlify.app",
-    "https://branch-*--3dpc-webpage.netlify.app",
-  ];
+// --- Production-ready enhancements for authentication middleware ---
+// In-memory user cache for performance
+let userCache = new Map();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-  const origin = req.headers.origin;
-  if (
-    allowedOrigins.some((allowed) =>
-      allowed.includes("*")
-        ? origin && origin.match(allowed.replace("*", ".*"))
-        : origin === allowed
-    )
-  ) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
+// Simple in-memory rate limiter
+const rateLimitMap = new Map();
+const rateLimit = (maxRequests = 100, windowMs = 15 * 60 * 1000) => {
+  return (req, res, next) => {
+    const key = req.ip || req.connection.remoteAddress;
+    const now = Date.now();
+    const windowStart = now - windowMs;
+    if (!rateLimitMap.has(key)) {
+      rateLimitMap.set(key, []);
+    }
+    const requests = rateLimitMap
+      .get(key)
+      .filter((timestamp) => timestamp > windowStart);
+    if (requests.length >= maxRequests) {
+      return res.status(429).json({
+        message: "Too many requests",
+        retryAfter: Math.ceil(windowMs / 1000),
+      });
+    }
+    requests.push(now);
+    rateLimitMap.set(key, requests);
+    next();
+  };
+};
+
+// Apply rate limiting to authentication endpoints
+app.use("/api/user/register", rateLimit(10, 15 * 60 * 1000));
+app.use("/api/user/profile", rateLimit(100, 15 * 60 * 1000));
+
+// Enhanced authentication middleware with caching and optimization
+app.use(async (req, res, next) => {
+  const token = req.headers.authorization?.split("Bearer ")?.[1];
+  if (token && token !== "undefined" && token !== "null") {
+    try {
+      const firebaseAdmin = initializeFirebase();
+      if (firebaseAdmin) {
+        const decodedToken = await firebaseAdmin.auth().verifyIdToken(token);
+        const userEmail = decodedToken.email;
+        if (!userEmail || !userEmail.endsWith("@smail.iitm.ac.in")) {
+          return res.status(403).json({
+            message:
+              "Access denied. Only @smail.iitm.ac.in email addresses are allowed.",
+          });
+        }
+        // Check cache first
+        const cacheKey = userEmail;
+        const cachedUser = userCache.get(cacheKey);
+        if (cachedUser && Date.now() - cachedUser.timestamp < CACHE_DURATION) {
+          req.user = cachedUser.user;
+          return next();
+        }
+        // Initialize database connection only when needed
+        const database = await initializeDatabase();
+        const { users, insertUserSchema } = require("./schema.js");
+        const { eq } = require("drizzle-orm");
+        const userResults = await database
+          .select()
+          .from(users)
+          .where(eq(users.email, userEmail))
+          .limit(1);
+        if (userResults.length > 0) {
+          const user = userResults[0];
+          req.user = user;
+          userCache.set(cacheKey, { user, timestamp: Date.now() });
+          database
+            .update(users)
+            .set({ lastLogin: new Date() })
+            .where(eq(users.id, user.id))
+            .catch((error) =>
+              console.error("Failed to update last login:", error)
+            );
+        } else {
+          // Auto-create user with better error handling
+          try {
+            const newUserData = {
+              email: userEmail,
+              displayName: decodedToken.name || userEmail.split("@")[0],
+              photoURL: decodedToken.picture || null,
+              role: "USER",
+              suspended: false,
+              fileUploadsUsed: 0,
+              notificationPreferences: {},
+              lastLogin: new Date(),
+            };
+            const validatedData = insertUserSchema.parse(newUserData);
+            const newUser = await database
+              .insert(users)
+              .values(validatedData)
+              .returning();
+            req.user = newUser[0];
+            userCache.set(cacheKey, {
+              user: newUser[0],
+              timestamp: Date.now(),
+            });
+            const { auditLogs } = require("./schema.js");
+            database
+              .insert(auditLogs)
+              .values({
+                userId: newUser[0].id,
+                action: "USER_AUTO_CREATED",
+                entityType: "user",
+                entityId: newUser[0].id.toString(),
+                details: {
+                  createdVia: "auth_middleware",
+                  emailDomain: "smail.iitm.ac.in",
+                  userAgent: req.headers["user-agent"] || "unknown",
+                },
+                timestamp: new Date(),
+              })
+              .catch((error) =>
+                console.error("Failed to create audit log:", error)
+              );
+          } catch (createError) {
+            console.error("Error auto-creating user:", createError);
+            return res.status(500).json({
+              message: "Failed to create user account",
+              error: "Please try again or contact support",
+            });
+          }
+        }
+      } else {
+        console.log("Firebase Admin SDK not available - development mode");
+      }
+    } catch (error) {
+      console.error("Auth token verification failed:", error);
+      if (error.code === "auth/id-token-expired") {
+        return res
+          .status(401)
+          .json({ message: "Token expired", code: "TOKEN_EXPIRED" });
+      } else if (error.code === "auth/id-token-revoked") {
+        return res
+          .status(401)
+          .json({ message: "Token revoked", code: "TOKEN_REVOKED" });
+      } else if (error.code === "auth/invalid-id-token") {
+        return res
+          .status(401)
+          .json({ message: "Invalid token", code: "INVALID_TOKEN" });
+      }
+      // Don't block request for other errors, just don't authenticate
+    }
   }
-
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-  );
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, X-User-Email"
-  );
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-
-  if (req.method === "OPTIONS") {
-    res.status(200).end();
-    return;
-  }
-
   next();
 });
 
-// Configure session middleware
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || "dev-secret-key-change-in-production",
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    },
-  })
-);
+// Clear cache periodically to prevent memory leaks
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of userCache.entries()) {
+    if (now - value.timestamp > CACHE_DURATION) {
+      userCache.delete(key);
+    }
+  }
+}, CACHE_DURATION);
 
 // Enhanced logging middleware
 app.use((req, res, next) => {

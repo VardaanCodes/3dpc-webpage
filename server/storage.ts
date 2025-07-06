@@ -113,3 +113,21 @@ export type {
 
 // Create and export an instance of the RepositoryStorage
 export const storage = new RepositoryStorage();
+
+// Initialize with default system configs
+const initializeStorage = async () => {
+  // Set default file upload limit if not exists
+  const existingLimit = await storage.getSystemConfig("file_upload_limit");
+  if (!existingLimit) {
+    await storage.setSystemConfig({
+      key: "file_upload_limit",
+      value: 10,
+      description: "Maximum number of file uploads per user",
+    });
+  }
+};
+
+// Initialize storage with defaults
+initializeStorage().catch(console.error);
+
+export { storage };

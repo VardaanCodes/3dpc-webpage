@@ -119,7 +119,7 @@ export const insertOrderSchema = createInsertSchema(orders)
       .union([z.string(), z.date()])
       .optional()
       .nullable()
-      .transform((val) => {
+      .transform((val: string | Date | null | undefined) => {
         if (!val) return null;
         if (typeof val === "string") {
           const date = new Date(val);
@@ -131,7 +131,7 @@ export const insertOrderSchema = createInsertSchema(orders)
       .union([z.string(), z.date()])
       .optional()
       .nullable()
-      .transform((val) => {
+      .transform((val: string | Date | null | undefined) => {
         if (!val) return null;
         if (typeof val === "string") {
           const date = new Date(val);
@@ -143,7 +143,7 @@ export const insertOrderSchema = createInsertSchema(orders)
       .union([z.string(), z.date()])
       .optional()
       .nullable()
-      .transform((val) => {
+      .transform((val: string | Date | null | undefined) => {
         if (!val) return null;
         if (typeof val === "string") {
           const date = new Date(val);
