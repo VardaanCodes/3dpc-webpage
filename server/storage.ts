@@ -129,5 +129,3 @@ const initializeStorage = async () => {
 
 // Initialize storage with defaults
 initializeStorage().catch(console.error);
-
-export { storage };

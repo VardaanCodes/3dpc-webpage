@@ -426,7 +426,28 @@ export class RepositoryStorage implements IStorage {
     id: number,
     updates: Partial<Order>
   ): Promise<Order> {
-    const order = await this.ordersRepo.update(id, updates);
+    // Use the same date processing as updateOrder
+    const dbUpdates: { [key: string]: any } = { ...updates };
+    const dateFields: string[] = [
+      "eventDeadline",
+      "estimatedCompletionTime",
+      "actualCompletionTime",
+      "submittedAt",
+      "updatedAt",
+    ];
+
+    for (const field of dateFields) {
+      const value = (updates as any)[field];
+      if (value && typeof value === "string") {
+        dbUpdates[field] = new Date(value);
+      }
+    }
+
+    const processedOrder = await this.ordersRepo.update(
+      id,
+      this.convertNullToUndefined(dbUpdates)
+    );
+    const order = this.processOrderResult(processedOrder);
 
     // Send notification if status changed
     if (updates.status) {

@@ -612,6 +612,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.status(400).json({ message: "Invalid config data" });
       }
     }
+  );
+
   // File download route with expiration check
   app.get("/api/files/:id/download", requireAuth, async (req: Request, res: Response) => {
     try {
@@ -665,7 +667,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create audit log for file download
       await storage.createAuditLog({
-        userId: req.user.id,
+        userId: (req as any).user.id,
         action: "file_downloaded",
         entityType: "file",
         entityId: fileId,
