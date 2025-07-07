@@ -1571,21 +1571,25 @@ const getBlobStore = (storeName) => {
       console.log("Netlify Blobs store initialized successfully (automatic)");
       return store;
     } catch (autoError) {
-      console.log("Automatic configuration failed, trying manual configuration");
+      console.log(
+        "Automatic configuration failed, trying manual configuration"
+      );
       console.log("Auto error:", autoError.message);
-      
+
       // Fallback to manual configuration
       if (!process.env.NETLIFY_SITE_ID || !process.env.NETLIFY_ACCESS_TOKEN) {
-        throw new Error("Missing required environment variables: NETLIFY_SITE_ID and NETLIFY_ACCESS_TOKEN");
+        throw new Error(
+          "Missing required environment variables: NETLIFY_SITE_ID and NETLIFY_ACCESS_TOKEN"
+        );
       }
-      
+
       // Use the alternate getStore API with configuration object
       const store = getStore({
         name: storeName,
         siteID: process.env.NETLIFY_SITE_ID,
         token: process.env.NETLIFY_ACCESS_TOKEN,
       });
-      
+
       console.log("Netlify Blobs store initialized successfully (manual)");
       return store;
     }

@@ -18,8 +18,8 @@ importers:
         specifier: ^0.10.4
         version: 0.10.4
       '@netlify/blobs':
-        specifier: ^6.5.0
-        version: 6.5.0
+        specifier: ^10.0.3
+        version: 10.0.3
       '@netlify/functions':
         specifier: ^4.1.9
         version: 4.1.9(rollup@4.44.2)
@@ -1636,10 +1636,6 @@ packages:
 
   '@netlify/blobs@10.0.3':
     resolution: {integrity: sha512-edfIKZTkKMKU00/L7u86jR14RrV7NyJBtxSEWLdtY1t2sxFprJgVJNIqPWXPF/LRvTCfNqmvyxkLvB2mbPA0aQ==}
-    engines: {node: ^14.16.0 || >=16.0.0}
-
-  '@netlify/blobs@6.5.0':
-    resolution: {integrity: sha512-wRFlNnL/Qv3WNLZd3OT/YYqF1zb6iPSo8T31sl9ccL1ahBxW1fBqKgF4b1XL7Z+6mRIkatvcsVPkWBcO+oJMNA==}
     engines: {node: ^14.16.0 || >=16.0.0}
 
   '@netlify/blobs@9.1.2':
@@ -8953,8 +8949,6 @@ snapshots:
     dependencies:
       '@netlify/dev-utils': 3.2.2
       '@netlify/runtime-utils': 2.1.0
-
-  '@netlify/blobs@6.5.0': {}
 
   '@netlify/blobs@9.1.2':
     dependencies:
