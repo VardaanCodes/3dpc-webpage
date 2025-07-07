@@ -1,7 +1,7 @@
 /** @format */
 
 import { useState, useCallback } from "react";
-import { Upload, X, FileCode, AlertCircle, CheckCircle } from "lucide-react";
+import { Upload, X, FileCode, AlertCircle, CheckCircle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -60,14 +60,18 @@ export function FileUpload({
 
   const uploadFile = async (fileData: FileData): Promise<void> => {
     try {
+      console.log("🔄 Starting upload for file:", fileData.name, "ID:", fileData.id);
+      
       // Update status to uploading
-      setFiles((prev) =>
-        prev.map((f) =>
+      setFiles((prev) => {
+        const updated = prev.map((f) =>
           f.id === fileData.id
             ? { ...f, uploadStatus: "uploading", uploadProgress: 0 }
             : f
-        )
-      );
+        );
+        console.log("📤 Updated file status to uploading. All files:", updated.map(f => ({name: f.name, status: f.uploadStatus})));
+        return updated;
+      });
 
       const formData = new FormData();
       formData.append("file", fileData.file);
@@ -90,6 +94,7 @@ export function FileUpload({
         }
       }
 
+      console.log("📡 Making upload request to /api/files/upload");
       const response = await fetch("/api/files/upload", {
         method: "POST",
         body: formData,
@@ -98,32 +103,52 @@ export function FileUpload({
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Upload error response:", errorText);
+        console.error("❌ Upload error response:", errorText);
         throw new Error(
           `Upload failed: ${response.status} ${response.statusText}`
         );
       }
 
       const result = await response.json();
-      console.log("Upload response:", result);
+      console.log("✅ Upload response received:", result);
+
+      // Ensure we have the uploaded file ID
+      const uploadedFileId = result.file?.id || result.id;
+      
+      if (!uploadedFileId) {
+        console.error("❌ No file ID in response:", result);
+        throw new Error("No file ID returned from server");
+      }
+
+      console.log("📝 File upload completed, ID:", uploadedFileId);
 
       // Update file with uploaded metadata
-      setFiles((prev) =>
-        prev.map((f) =>
+      setFiles((prev) => {
+        const updatedFiles = prev.map((f) =>
           f.id === fileData.id
             ? {
                 ...f,
                 uploadStatus: "completed",
                 uploadProgress: 100,
-                uploadedFileId: result.file?.id || result.id,
+                uploadedFileId: uploadedFileId,
               }
             : f
-        )
-      );
+        );
+        
+        console.log("✅ File marked as completed. All file statuses:", updatedFiles.map(f => ({
+          name: f.name, 
+          status: f.uploadStatus, 
+          uploadedId: f.uploadedFileId
+        })));
+        
+        // Notify parent of updated files
+        onFilesChange(updatedFiles);
+        return updatedFiles;
+      });
     } catch (error) {
-      console.error("File upload error:", error);
-      setFiles((prev) =>
-        prev.map((f) =>
+      console.error("❌ File upload error:", error);
+      setFiles((prev) => {
+        const updatedFiles = prev.map((f) =>
           f.id === fileData.id
             ? {
                 ...f,
@@ -133,8 +158,18 @@ export function FileUpload({
                   error instanceof Error ? error.message : "Upload failed",
               }
             : f
-        )
-      );
+        );
+        
+        console.log("❌ File marked as error. All file statuses:", updatedFiles.map(f => ({
+          name: f.name, 
+          status: f.uploadStatus, 
+          error: f.errorMessage
+        })));
+        
+        // Notify parent of updated files
+        onFilesChange(updatedFiles);
+        return updatedFiles;
+      });
     }
   };
 
@@ -374,6 +409,35 @@ export function FileUpload({
       )}
 
       {/* Upload Progress */}
+      {files.length > 0 && (
+        <div className="bg-slate-800 rounded-xl p-4">
+          <h3 className="text-lg font-semibold text-white mb-2">Upload Status</h3>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-400">Total Files</span>
+              <span className="text-white">{files.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Completed</span>
+              <span className="text-green-400">{files.filter(f => f.uploadStatus === "completed").length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Uploading</span>
+              <span className="text-cyan-400">{files.filter(f => f.uploadStatus === "uploading").length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Failed</span>
+              <span className="text-red-400">{files.filter(f => f.uploadStatus === "error").length}</span>
+            </div>
+          </div>
+          {files.some(f => f.uploadStatus === "uploading" || f.uploadStatus === "pending") && (
+            <div className="mt-3 p-2 bg-cyan-900/20 border border-cyan-800 rounded text-cyan-200 text-sm">
+              <Clock className="inline h-4 w-4 mr-2" />
+              Files are uploading... Please wait before submitting your print request.
+            </div>
+          )}
+        </div>
+      )}
       <div className="bg-slate-800 rounded-xl p-6">
         <h3 className="text-lg font-semibold text-white mb-4">Upload Limits</h3>
         <div className="space-y-3">

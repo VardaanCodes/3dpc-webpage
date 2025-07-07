@@ -15,6 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { OrderStatusBadge } from "@/components/OrderStatusBadge";
 import { useAppConfig } from "@/hooks/useAppConfig";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import { type Order, type Club, type User as AppUser } from "@shared/schema";
 import {
   Eye,
@@ -47,17 +49,26 @@ export function OrderDetailsDialog({
 }: OrderDetailsDialogProps) {
   const [open, setOpen] = useState(false);
   const { config } = useAppConfig();
+  const { toast } = useToast();
   const { data: files = [] } = useQuery<any[]>({
-    queryKey: [`/api/orders/${order.id}/files`],
+    queryKey: [`/api/files/order/${order.id}`],
+    queryFn: async () => {
+      try {
+        const response = await apiRequest("GET", `/api/files/order/${order.id}`);
+        const data = await response.json();
+        return data.files || [];
+      } catch (error) {
+        console.error("Failed to fetch order files:", error);
+        return order.files || []; // Fallback to files in order object
+      }
+    },
     enabled: open,
   });
   const handleDownloadFile = async (fileId: string, fileName: string) => {
     try {
-      const response = await fetch(`/api/files/${fileId}/download`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-        },
-      });
+      console.log("Downloading file:", fileId, fileName);
+      
+      const response = await apiRequest("GET", `/api/files/download/${fileId}`);
 
       if (!response.ok) {
         if (response.status === 410) {
@@ -71,7 +82,7 @@ export function OrderDetailsDialog({
             "Access denied - you don't have permission to download this file"
           );
         }
-        throw new Error("Failed to download file");
+        throw new Error(`Download failed: ${response.status} ${response.statusText}`);
       }
 
       // Get the blob from the response
@@ -89,16 +100,14 @@ export function OrderDetailsDialog({
       // Clean up the object URL
       window.URL.revokeObjectURL(url);
 
-      // Show success message
-      // toast({ title: "Download started", description: `Downloading ${fileName}` });
+      console.log("File download completed:", fileName);
     } catch (error) {
       console.error("Error downloading file:", error);
-      // Show error message
-      // toast({
-      //   title: "Download failed",
-      //   description: error instanceof Error ? error.message : "Unknown error occurred",
-      //   variant: "destructive"
-      // });
+      toast({
+        title: "Download failed",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
+        variant: "destructive"
+      });
     }
   };
 

@@ -104,6 +104,15 @@ export function SubmitPrint() {
     },
   });
   const onSubmit = (data: SubmitPrintForm) => {
+    console.log("🎯 Print submission initiated with data:", data);
+    console.log("📁 Current files state:", files.map(f => ({
+      name: f.name,
+      status: f.uploadStatus,
+      uploadedId: f.uploadedFileId,
+      hasFile: !!f.file,
+      id: f.id
+    })));
+    
     // Convert eventDeadline to YYYY-MM-DD if present
     let eventDeadline: string | undefined = undefined;
     if (data.eventDeadline) {
@@ -140,10 +149,17 @@ export function SubmitPrint() {
       (f) => f.uploadStatus === "uploading" || f.uploadStatus === "pending"
     );
 
+    console.log("Files upload status check:", {
+      totalFiles: files.length,
+      pendingUploads: pendingUploads.length,
+      uploadedFiles: uploadedFiles.length,
+      fileStatuses: files.map(f => ({ name: f.name, status: f.uploadStatus, id: f.uploadedFileId }))
+    });
+
     if (pendingUploads.length > 0) {
       toast({
         title: "Upload in progress",
-        description: `Please wait for ${pendingUploads.length} file(s) to finish uploading before submitting.`,
+        description: `Waiting for ${pendingUploads.length} file(s) to finish uploading before submitting.`,
         variant: "destructive",
       });
       return;

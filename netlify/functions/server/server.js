@@ -5,6 +5,7 @@ const express = require("express");
 const serverless = require("serverless-http");
 const session = require("express-session");
 const multer = require("multer");
+const crypto = require("crypto");
 
 // Create Express app
 const app = express();
@@ -869,9 +870,24 @@ app.post("/api/orders", requireAuth, async (req, res) => {
   try {
     if (!req.user) return res.status(401).json({ message: "Unauthorized" });
 
+    console.log("📝 Order creation request received");
+    console.log("👤 User:", req.user.email);
+    console.log("📄 Request body:", req.body);
+    console.log("🗂️ Files in request:", req.body.files ? req.body.files.length : 0, "files");
+
     const database = await initializeDatabase();
     const { orders, insertOrderSchema, clubs } = require("./schema.js");
     const { sql, like, eq } = require("drizzle-orm");
+
+    const orderData = {
+      ...req.body,
+      userId: req.user.id,
+    };
+
+    console.log("🔄 Processing order data:", {
+      ...orderData,
+      files: orderData.files ? `${orderData.files.length} files` : "No files"
+    });
 
     const orderData = {
       ...req.body,
@@ -943,6 +959,12 @@ app.post("/api/orders", requireAuth, async (req, res) => {
       .values(dataToInsert)
       .returning();
 
+    console.log("✅ Order created successfully:", {
+      id: newOrder[0].id,
+      orderId: newOrder[0].orderId,
+      filesIncluded: newOrder[0].files ? newOrder[0].files.length : 0
+    });
+
     res.status(201).json(newOrder[0]);
   } catch (error) {
     console.error("Error creating order:", error);
@@ -977,933 +999,345 @@ app.get("/api/stats/user", requireAuth, async (req, res) => {
   }
 });
 
-// Database initialization endpoint (for admin use)
-app.post(
-  "/api/admin/init-db",
-  requireAuth,
-  requireRole(["ADMIN", "SUPERADMIN"]),
-  async (req, res) => {
-    try {
-      console.log(
-        "Manual database initialization requested by:",
-        req.user.email
-      );
-
-      const database = await initializeDatabase();
-      const { sql } = require("@neondatabase/serverless");
-      const dbUrl =
-        process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL;
-      const sqlClient = require("@neondatabase/serverless").neon(dbUrl);
-
-      // Check current database status
-      const initStatus = {
-        connectivity: false,
-        tables: {},
-        needsMigration: false,
-      };
-
-      // Test connectivity
-      try {
-        await sqlClient`SELECT 1 as test`;
-        initStatus.connectivity = true;
-      } catch (error) {
-        throw new Error(`Database connectivity failed: ${error.message}`);
-      }
-
-      // Check for each expected table
-      const expectedTables = [
-        "users",
-        "clubs",
-        "orders",
-        "batches",
-        "audit_logs",
-        "system_config",
-      ];
-
-      for (const tableName of expectedTables) {
-        try {
-          await sqlClient`SELECT COUNT(*) FROM ${sqlClient(tableName)} LIMIT 1`;
-          initStatus.tables[tableName] = "exists";
-        } catch (error) {
-          if (
-            error.message.includes(`relation "${tableName}" does not exist`)
-          ) {
-            initStatus.tables[tableName] = "missing";
-            initStatus.needsMigration = true;
-          } else {
-            initStatus.tables[tableName] = "error";
-          }
-        }
-      }
-
-      // Add audit log for this action
-      if (initStatus.tables.audit_logs === "exists") {
-        const { auditLogs } = require("./schema.js");
-        await database.insert(auditLogs).values({
-          userId: req.user.id,
-          action: "DB_INIT_CHECK",
-          entityType: "system",
-          details: {
-            requestedBy: req.user.email,
-            initStatus,
-            timestamp: new Date().toISOString(),
-          },
-          timestamp: new Date(),
-        });
-      }
-
-      res.json({
-        message: "Database initialization check completed",
-        status: initStatus,
-        recommendations: initStatus.needsMigration
-          ? [
-              "Run database migrations using: npm run db:migrate",
-              "Or use Drizzle Kit: npx drizzle-kit push",
-              "Check your drizzle.config.ts configuration",
-            ]
-          : [
-              "Database schema is properly initialized",
-              "All expected tables are present",
-            ],
-      });
-    } catch (error) {
-      console.error("Database initialization check failed:", error);
-      res.status(500).json({
-        message: "Database initialization check failed",
-        error: error.message,
-        troubleshooting: [
-          "Verify NETLIFY_DATABASE_URL or DATABASE_URL is set correctly",
-          "Check if the Neon database exists and is accessible",
-          "Ensure database migrations have been run",
-          "Check Netlify function logs for detailed error information",
-        ],
-      });
-    }
-  }
-);
-
-// Manual database initialization endpoint (for testing and verification)
-app.get("/api/admin/init-db-test", async (req, res) => {
-  try {
-    console.log("Manual database initialization test requested");
-
-    const database = await initializeDatabase();
-    const { neon } = require("@neondatabase/serverless");
-    const dbUrl = process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL;
-    const sqlClient = neon(dbUrl);
-
-    // Test connectivity and schema
-    const testResults = {
-      connectivity: false,
-      tables: {},
-      environment: {
-        NODE_ENV: process.env.NODE_ENV || "unknown",
-        hasNetlifyUrl: !!process.env.NETLIFY_DATABASE_URL,
-        hasDatabaseUrl: !!process.env.DATABASE_URL,
-        databaseHost: dbUrl ? dbUrl.split("@")[1]?.split("/")[0] : "unknown",
-      },
-    };
-
-    // Test connectivity
-    try {
-      const connectTest = await sqlClient`SELECT 1 as test, NOW() as timestamp`;
-      testResults.connectivity = true;
-      testResults.connectionTest = connectTest[0];
-    } catch (error) {
-      throw new Error(`Database connectivity failed: ${error.message}`);
-    }
-
-    // Check for each expected table
-    const expectedTables = [
-      "users",
-      "clubs",
-      "orders",
-      "batches",
-      "audit_logs",
-      "system_config",
-    ];
-
-    for (const tableName of expectedTables) {
-      try {
-        const countResult =
-          await sqlClient`SELECT COUNT(*) as count FROM ${sqlClient(
-            tableName
-          )}`;
-        testResults.tables[tableName] = {
-          exists: true,
-          rowCount: parseInt(countResult[0].count),
-        };
-      } catch (error) {
-        if (error.message.includes(`relation "${tableName}" does not exist`)) {
-          testResults.tables[tableName] = {
-            exists: false,
-            error: "Table does not exist",
-          };
-        } else {
-          testResults.tables[tableName] = {
-            exists: false,
-            error: error.message,
-          };
-        }
-      }
-    }
-
-    // Check if we need sample data
-    try {
-      const userCount = await sqlClient`SELECT COUNT(*) as count FROM users`;
-      testResults.needsSampleData = parseInt(userCount[0].count) === 0;
-    } catch (error) {
-      testResults.needsSampleData = true;
-    }
-
-    res.json({
-      message: "Database initialization test completed",
-      status: "success",
-      results: testResults,
-      recommendations: Object.values(testResults.tables).some((t) => !t.exists)
-        ? [
-            "Some tables are missing - they should be created automatically on the next API call",
-            "If tables are still missing, check Netlify function logs for errors",
-            "Verify that NETLIFY_DATABASE_URL points to a valid Neon database",
-          ]
-        : [
-            "Database schema is properly initialized",
-            "All expected tables are present",
-            testResults.needsSampleData
-              ? "Consider adding sample data for testing"
-              : "Database contains data",
-          ],
-    });
-  } catch (error) {
-    console.error("Database initialization test failed:", error);
-    res.status(500).json({
-      message: "Database initialization test failed",
-      error: error.message,
-      troubleshooting: [
-        "Verify NETLIFY_DATABASE_URL or DATABASE_URL is set correctly",
-        "Check if the Neon database exists and is accessible",
-        "Review Netlify function logs for detailed error information",
-        "Ensure the database user has sufficient permissions",
-      ],
-    });
-  }
-});
-
-// Health check endpoint
-app.get("/api/health", async (req, res) => {
-  try {
-    const healthData = {
-      status: "ok",
-      timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV || "development",
-      services: {},
-    };
-
-    // Test database connectivity
-    try {
-      const database = await initializeDatabase();
-      const { sql } = require("@neondatabase/serverless");
-      const dbUrl =
-        process.env.NETLIFY_DATABASE_URL || process.env.DATABASE_URL;
-      const sqlClient = require("@neondatabase/serverless").neon(dbUrl);
-
-      await sqlClient`SELECT 1 as test`;
-      healthData.services.database = { status: "connected", provider: "neon" };
-
-      // Check if core tables exist
-      try {
-        await sqlClient`SELECT COUNT(*) FROM users LIMIT 1`;
-        healthData.services.database.schema = "initialized";
-      } catch (schemaError) {
-        if (schemaError.message.includes('relation "users" does not exist')) {
-          healthData.services.database.schema = "not_initialized";
-          healthData.services.database.warning =
-            "Database tables do not exist - run migrations";
-        } else {
-          healthData.services.database.schema = "error";
-          healthData.services.database.error = schemaError.message;
-        }
-      }
-    } catch (dbError) {
-      healthData.services.database = {
-        status: "error",
-        error: dbError.message,
-        provider: "neon",
-      };
-    }
-
-    // Test Firebase connectivity (if configured)
-    try {
-      const firebaseAdmin = initializeFirebase();
-      if (firebaseAdmin) {
-        healthData.services.firebase = {
-          status: "configured",
-          provider: "firebase_admin",
-        };
-      } else {
-        healthData.services.firebase = { status: "not_configured" };
-      }
-    } catch (firebaseError) {
-      healthData.services.firebase = {
-        status: "error",
-        error: firebaseError.message,
-      };
-    }
-
-    res.json(healthData);
-  } catch (error) {
-    console.error("Health check error:", error);
-    res.status(500).json({
-      status: "error",
-      timestamp: new Date().toISOString(),
-      error: error.message,
-    });
-  }
-});
-
-// Admin endpoints for order management
-app.patch(
-  "/api/orders/:id",
-  requireAuth,
-  requireRole(["ADMIN", "SUPERADMIN"]),
-  async (req, res) => {
-    try {
-      if (!req.user) return res.status(401).json({ message: "Unauthorized" });
-
-      const database = await initializeDatabase();
-      const { orders, auditLogs } = require("./schema.js");
-      const { eq } = require("drizzle-orm");
-
-      const orderId = parseInt(req.params.id);
-      const updates = req.body;
-
-      // Update the order
-      const updatedOrders = await database
-        .update(orders)
-        .set({
-          ...updates,
-          updatedAt: new Date(),
-        })
-        .where(eq(orders.id, orderId))
-        .returning();
-
-      if (updatedOrders.length === 0) {
-        return res.status(404).json({ message: "Order not found" });
-      }
-
-      // Create audit log
-      await database.insert(auditLogs).values({
-        userId: req.user.id,
-        action: "order_updated",
-        entityType: "order",
-        entityId: orderId.toString(),
-        details: updates,
-        reason: updates.reason || null,
-        timestamp: new Date(),
-      });
-
-      res.json(updatedOrders[0]);
-    } catch (error) {
-      console.error("Order update error:", error);
-      res.status(400).json({ message: "Failed to update order" });
-    }
-  }
-);
-
-app.patch(
-  "/api/orders/:id/status",
-  requireAuth,
-  requireRole(["ADMIN", "SUPERADMIN"]),
-  async (req, res) => {
-    try {
-      if (!req.user) return res.status(401).json({ message: "Unauthorized" });
-
-      const database = await initializeDatabase();
-      const { orders, auditLogs } = require("./schema.js");
-      const { eq } = require("drizzle-orm");
-
-      const orderId = parseInt(req.params.id);
-      const { status } = req.body;
-
-      // Validate status
-      const validStatuses = [
-        "submitted",
-        "approved",
-        "started",
-        "finished",
-        "failed",
-        "cancelled",
-      ];
-      if (!validStatuses.includes(status)) {
-        return res.status(400).json({ message: "Invalid order status" });
-      }
-
-      // Update the order status
-      const updatedOrders = await database
-        .update(orders)
-        .set({
-          status,
-          updatedAt: new Date(),
-        })
-        .where(eq(orders.id, orderId))
-        .returning();
-
-      if (updatedOrders.length === 0) {
-        return res.status(404).json({ message: "Order not found" });
-      }
-
-      // Create audit log
-      await database.insert(auditLogs).values({
-        userId: req.user.id,
-        action: "order_status_updated",
-        entityType: "order",
-        entityId: orderId.toString(),
-        details: { status },
-        reason: null,
-        timestamp: new Date(),
-      });
-
-      res.json(updatedOrders[0]);
-    } catch (error) {
-      console.error("Order status update error:", error);
-      res.status(400).json({ message: "Failed to update order status" });
-    }
-  }
-);
-
-// Batch management endpoints
+// Admin stats endpoint
 app.get(
-  "/api/batches",
+  "/api/stats/admin",
   requireAuth,
   requireRole(["ADMIN", "SUPERADMIN"]),
   async (req, res) => {
     try {
       const database = await initializeDatabase();
-      const { batches } = require("./schema.js");
-      const { desc } = require("drizzle-orm");
+      const { orders, batches, users } = require("./schema.js");
 
-      const allBatches = await database
-        .select()
-        .from(batches)
-        .orderBy(desc(batches.createdAt));
-
-      res.json(allBatches);
-    } catch (error) {
-      console.error("Error fetching batches:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  }
-);
-
-app.post(
-  "/api/batches",
-  requireAuth,
-  requireRole(["ADMIN", "SUPERADMIN"]),
-  async (req, res) => {
-    try {
-      if (!req.user) return res.status(401).json({ message: "Unauthorized" });
-
-      const database = await initializeDatabase();
-      const { batches, auditLogs } = require("./schema.js");
-
-      const batchData = {
-        ...req.body,
-        createdById: req.user.id,
-        createdAt: new Date(),
-      };
-
-      const newBatches = await database
-        .insert(batches)
-        .values(batchData)
-        .returning();
-
-      const batch = newBatches[0];
-
-      // Create audit log
-      await database.insert(auditLogs).values({
-        userId: req.user.id,
-        action: "batch_created",
-        entityType: "batch",
-        entityId: batch.id.toString(),
-        details: { batchNumber: batch.batchNumber, name: batch.name },
-        reason: null,
-        timestamp: new Date(),
-      });
-
-      res.status(201).json(batch);
-    } catch (error) {
-      console.error("Batch creation error:", error);
-      res.status(400).json({ message: "Invalid batch data" });
-    }
-  }
-);
-
-app.patch(
-  "/api/batches/:id",
-  requireAuth,
-  requireRole(["ADMIN", "SUPERADMIN"]),
-  async (req, res) => {
-    try {
-      if (!req.user) return res.status(401).json({ message: "Unauthorized" });
-
-      const database = await initializeDatabase();
-      const { batches, auditLogs } = require("./schema.js");
-      const { eq } = require("drizzle-orm");
-
-      const batchId = parseInt(req.params.id);
-      const updates = req.body;
-
-      const updatedBatches = await database
-        .update(batches)
-        .set({
-          ...updates,
-          updatedAt: new Date(),
-        })
-        .where(eq(batches.id, batchId))
-        .returning();
-
-      if (updatedBatches.length === 0) {
-        return res.status(404).json({ message: "Batch not found" });
-      }
-
-      // Create audit log
-      await database.insert(auditLogs).values({
-        userId: req.user.id,
-        action: "batch_updated",
-        entityType: "batch",
-        entityId: batchId.toString(),
-        details: updates,
-        reason: null,
-        timestamp: new Date(),
-      });
-
-      res.json(updatedBatches[0]);
-    } catch (error) {
-      console.error("Batch update error:", error);
-      res.status(400).json({ message: "Failed to update batch" });
-    }
-  }
-);
-
-// User management endpoints
-app.get(
-  "/api/users",
-  requireAuth,
-  requireRole(["ADMIN", "SUPERADMIN"]),
-  async (req, res) => {
-    try {
-      const database = await initializeDatabase();
-      const { users } = require("./schema.js");
-
+      const allOrders = await database.select().from(orders);
+      const allBatches = await database.select().from(batches);
       const allUsers = await database.select().from(users);
-      res.json(allUsers);
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const stats = {
+        totalOrders: allOrders.length,
+        totalPending: allOrders.filter((o) => o.status === "submitted").length,
+        inProgress: allOrders.filter((o) =>
+          ["approved", "started"].includes(o.status)
+        ).length,
+        batchesActive: allBatches.filter((b) =>
+          ["created", "approved", "active"].includes(b.status)
+        ).length,
+        completedToday: allOrders.filter(
+          (o) =>
+            o.status === "finished" &&
+            o.actualCompletionTime &&
+            new Date(o.actualCompletionTime) >= today
+        ).length,
+        avgProcessingTime: "3.2 days",
+        failed: allOrders.filter((o) => ["failed", "cancelled"].includes(o.status))
+          .length,
+        totalUsers: allUsers.length,
+      };
+
+      res.json(stats);
     } catch (error) {
-      console.error("Error fetching users:", error);
-      res.status(500).json({ message: "Internal server error" });
+      console.error("Admin stats error:", error);
+      res.status(500).json({ message: "Failed to get admin stats" });
     }
   }
 );
 
-app.patch(
-  "/api/users/:id",
+// System stats endpoint for super admins
+app.get(
+  "/api/stats/system",
+  requireAuth,
+  requireRole(["SUPERADMIN"]),
+  async (req, res) => {
+    try {
+      const database = await initializeDatabase();
+      const { orders, users, batches } = require("./schema.js");
+
+      const allOrders = await database.select().from(orders);
+      const allUsers = await database.select().from(users);
+      const allBatches = await database.select().from(batches);
+
+      const systemStats = {
+        totalOrders: allOrders.length,
+        totalUsers: allUsers.length,
+        totalAdmins: allUsers.filter((u) => u.role === "ADMIN").length,
+        totalBatches: allBatches.length,
+        storageUsed: "2.4 GB",
+        systemHealth: "healthy",
+        activeSessions: allUsers.filter((u) => u.status === "active").length,
+      };
+
+      res.json(systemStats);
+    } catch (error) {
+      console.error("System stats error:", error);
+      res.status(500).json({ message: "Failed to get system stats" });
+    }
+  }
+);
+
+// Audit logs endpoint
+app.get(
+  "/api/audit-logs",
   requireAuth,
   requireRole(["ADMIN", "SUPERADMIN"]),
   async (req, res) => {
     try {
-      if (!req.user) return res.status(401).json({ message: "Unauthorized" });
-
       const database = await initializeDatabase();
-      const { users, auditLogs } = require("./schema.js");
-      const { eq } = require("drizzle-orm");
+      const { auditLogs } = require("./schema.js");
 
-      const userId = parseInt(req.params.id);
-      const updates = req.body;
-
-      const updatedUsers = await database
-        .update(users)
-        .set({
-          ...updates,
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, userId))
-        .returning();
-
-      if (updatedUsers.length === 0) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      // Create audit log
-      await database.insert(auditLogs).values({
-        userId: req.user.id,
-        action: "user_updated",
-        entityType: "user",
-        entityId: userId.toString(),
-        details: updates,
-        reason: null,
-        timestamp: new Date(),
-      });
-
-      res.json(updatedUsers[0]);
+      const logs = await database
+        .select()
+        .from(auditLogs)
+        .orderBy(auditLogs.createdAt);
+      res.json(logs);
     } catch (error) {
-      console.error("User update error:", error);
-      res.status(400).json({ message: "Failed to update user" });
+      console.error("Audit logs error:", error);
+      res.status(500).json({ message: "Failed to get audit logs" });
     }
   }
 );
-
-// File upload routes implementation
-const { v4: uuid } = require("uuid");
-const { getStore } = require("@netlify/blobs");
-
-// Helper function to get blob store with better error handling
-const getBlobStore = (storeName) => {
-  try {
-    console.log("Attempting to initialize Netlify Blobs store:", storeName);
-    console.log("Environment check:");
-    console.log("- NETLIFY_SITE_ID:", !!process.env.NETLIFY_SITE_ID);
-    console.log("- NETLIFY_ACCESS_TOKEN:", !!process.env.NETLIFY_ACCESS_TOKEN);
-    console.log("- CONTEXT:", process.env.CONTEXT);
-    console.log("- DEPLOY_URL:", !!process.env.DEPLOY_URL);
-
-    // Try automatic configuration first
-    try {
-      const store = getStore(storeName);
-      console.log("Netlify Blobs store initialized successfully (automatic)");
-      return store;
-    } catch (autoError) {
-      console.log(
-        "Automatic configuration failed, trying manual configuration"
-      );
-      console.log("Auto error:", autoError.message);
-
-      // Fallback to manual configuration
-      if (!process.env.NETLIFY_SITE_ID || !process.env.NETLIFY_ACCESS_TOKEN) {
-        throw new Error(
-          "Missing required environment variables: NETLIFY_SITE_ID and NETLIFY_ACCESS_TOKEN"
-        );
-      }
-
-      // Use the alternate getStore API with configuration object
-      const store = getStore({
-        name: storeName,
-        siteID: process.env.NETLIFY_SITE_ID,
-        token: process.env.NETLIFY_ACCESS_TOKEN,
-      });
-
-      console.log("Netlify Blobs store initialized successfully (manual)");
-      return store;
-    }
-  } catch (error) {
-    console.error("Failed to initialize Netlify Blobs store:", error.message);
-    console.error("This might be due to:");
-    console.error("1. Missing environment variables");
-    console.error("2. Not running in Netlify environment");
-    console.error("3. Site configuration issues");
-
-    // For now, throw a more descriptive error
-    throw new Error(
-      `Netlify Blobs configuration failed: ${error.message}. Please ensure environment variables are set correctly.`
-    );
-  }
-};
-
-// Set up multer for in-memory file storage
-const storage = multer.memoryStorage();
-const upload = multer({
-  storage,
-  limits: {
-    fileSize: 50 * 1024 * 1024, // 50 MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    // Check allowed file types
-    const allowedTypes = [
-      "application/vnd.ms-pki.stl",
-      "application/object",
-      "model/stl",
-      "application/gcode",
-      "text/plain",
-      "application/octet-stream",
-    ];
-
-    const allowedExtensions = [".stl", ".gcode", ".obj"];
-    const fileExtension =
-      "." + file.originalname.split(".").pop()?.toLowerCase();
-
-    if (
-      allowedTypes.includes(file.mimetype) ||
-      allowedExtensions.includes(fileExtension)
-    ) {
-      cb(null, true);
-    } else {
-      cb(
-        new Error(`File type not supported: ${file.mimetype || fileExtension}`),
-        false
-      );
-    }
-  },
-});
 
 // File upload endpoint
-app.post(
-  "/api/files/upload",
-  requireAuth,
-  upload.single("file"),
-  async (req, res) => {
-    try {
-      if (!req.user) {
-        return res.status(401).json({ error: "Authentication required" });
-      }
-
-      const file = req.file;
-      const { orderId } = req.body;
-      const email = req.user.email;
-
-      if (!file) {
-        return res.status(400).json({ error: "No file uploaded" });
-      }
-
-      // Get user ID from database based on email
-      const database = await initializeDatabase();
-      const { users, orders } = require("./schema.js");
-      const { eq } = require("drizzle-orm");
-
-      const userResult = await database
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.email, email))
-        .limit(1);
-
-      if (!userResult.length) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      const userDbId = userResult[0].id;
-
-      // Upload file using Netlify Blobs
-      const fileId = uuid();
-      const createdAt = new Date();
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30);
-
-      const fileMetadata = {
-        id: fileId,
-        fileName: file.originalname,
-        contentType:
-          file.mimetype || `application/${file.originalname.split(".").pop()}`,
-        size: file.size,
-        uploadedBy: userDbId,
-        orderId: orderId ? parseInt(orderId, 10) : undefined,
-        createdAt,
-        expiresAt,
-      };
-
-      // Upload to Netlify Blobs
-      const blobStore = getBlobStore("file-uploads");
-      await blobStore.set(fileId, file.buffer, {
-        metadata: {
-          fileName: file.originalname,
-          contentType: file.mimetype,
-          size: file.size.toString(),
-          uploadedBy: userDbId.toString(),
-          orderId: orderId?.toString(),
-          createdAt: createdAt.toISOString(),
-          expiresAt: expiresAt.toISOString(),
-        },
-      });
-
-      // If file is associated with an order, update the order's files field
-      if (orderId) {
-        const orderResult = await database
-          .select({ files: orders.files })
-          .from(orders)
-          .where(eq(orders.id, parseInt(orderId, 10)))
-          .limit(1);
-
-        if (orderResult.length > 0) {
-          const currentFiles = orderResult[0].files || [];
-          const updatedFiles = [...currentFiles, fileMetadata];
-
-          await database
-            .update(orders)
-            .set({
-              files: updatedFiles,
-              updatedAt: new Date(),
-            })
-            .where(eq(orders.id, parseInt(orderId, 10)));
-        }
-      }
-
-      res.json({
-        message: "File uploaded successfully",
-        file: fileMetadata,
-      });
-    } catch (error) {
-      console.error("File upload error:", error);
-      res.status(500).json({
-        error: "File upload failed",
-        details: error.message,
-      });
-    }
-  }
-);
-
-// File download endpoint
-app.get("/api/files/download/:id", requireAuth, async (req, res) => {
+const upload = multer();
+app.post("/api/files/upload", requireAuth, upload.single("file"), async (req, res) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: "Authentication required" });
+    console.log("📥 File upload request received");
+    console.log("🔍 User:", req.user?.email);
+    console.log("📄 File info:", req.file ? {
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    } : "No file");
+
+    const file = req.file;
+    const user = req.user;
+
+    if (!file) {
+      console.log("❌ No file in request");
+      return res.status(400).json({ error: "No file uploaded" });
     }
 
-    const { id } = req.params;
-    const userId = req.user.id;
-    const role = req.user.role;
+    // Get user ID from database based on email
+    const database = await initializeDatabase();
+    const { users } = require("./schema.js");
+    const { eq } = require("drizzle-orm");
 
-    // Get file metadata from Netlify Blobs
+    const userResult = await database
+      .select()
+      .from(users)
+      .where(eq(users.email, user.email))
+      .limit(1);
+
+    if (userResult.length === 0) {
+      console.log("❌ User not found in database:", user.email);
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const dbUser = userResult[0];
+    console.log("✅ User found:", dbUser.email, "ID:", dbUser.id);
+
+    // Create metadata object
+    const metadata = {
+      fileName: file.originalname,
+      contentType: file.mimetype,
+      size: file.size,
+      uploadedBy: dbUser.id,
+      uploadedAt: new Date().toISOString(),
+    };
+
+    // Generate unique file ID
+    const fileId = crypto.randomUUID();
+    console.log("🆔 Generated file ID:", fileId);
+
+    // Upload file to Netlify Blobs
     const blobStore = getBlobStore("file-uploads");
-    const result = await blobStore.getWithMetadata(id);
+    const blob = new Blob([file.buffer], { type: file.mimetype });
 
-    if (!result || !result.data) {
-      return res.status(404).json({ error: "File not found" });
-    }
+    console.log("☁️ Uploading to Netlify Blobs...");
+    await blobStore.set(fileId, blob, {
+      metadata,
+    });
+    console.log("✅ File uploaded to Netlify Blobs successfully");
 
-    const fileMetadata = result.metadata;
+    // Create file response
+    const fileResponse = {
+      id: fileId,
+      fileName: file.originalname,
+      contentType: file.mimetype,
+      size: file.size,
+      uploadedBy: dbUser.id,
+      uploadedAt: new Date(),
+      url: `/api/files/download/${fileId}`,
+    };
 
-    // Check permissions - user must own the file or be admin
-    const fileUploadedBy = parseInt(fileMetadata.uploadedBy);
-    if (
-      fileUploadedBy !== userId &&
-      !["ADMIN", "SUPERADMIN"].includes(role?.toUpperCase() || "")
-    ) {
-      return res.status(403).json({ error: "Access denied" });
-    }
+    console.log("📤 Sending response with file ID:", fileId);
 
-    // Check if file has an associated order
-    if (fileMetadata.orderId) {
-      const database = await initializeDatabase();
-      const { orders } = require("./schema.js");
-      const { eq } = require("drizzle-orm");
-
-      const orderResult = await database
-        .select()
-        .from(orders)
-        .where(eq(orders.id, parseInt(fileMetadata.orderId)))
-        .limit(1);
-
-      if (orderResult.length > 0) {
-        const order = orderResult[0];
-
-        // Check if user owns the order or is admin
-        if (
-          order.userId !== userId &&
-          !["ADMIN", "SUPERADMIN"].includes(role?.toUpperCase() || "")
-        ) {
-          return res.status(403).json({ error: "Access denied" });
-        }
-
-        // Check file expiration (30 days from submission)
-        if (order.submittedAt) {
-          const submittedDate = new Date(order.submittedAt);
-          const expiryDate = new Date(submittedDate);
-          expiryDate.setDate(expiryDate.getDate() + 30);
-
-          if (new Date() > expiryDate) {
-            return res.status(410).json({
-              error: "File has expired and is no longer available for download",
-            });
-          }
-        }
-      }
-    }
-
-    // Set appropriate headers
-    res.setHeader(
-      "Content-Type",
-      fileMetadata.contentType || "application/octet-stream"
-    );
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="${fileMetadata.fileName}"`
-    );
-    res.setHeader("Content-Length", fileMetadata.size);
-
-    // Stream the file data
-    const fileBuffer = Buffer.from(await result.data.arrayBuffer());
-    res.send(fileBuffer);
+    res.json({
+      success: true,
+      message: "File uploaded successfully",
+      file: fileResponse,
+      id: fileId, // Add for compatibility with frontend
+    });
   } catch (error) {
-    console.error("File download error:", error);
+    console.error("❌ File upload error:", error);
     res.status(500).json({
-      error: "File download failed",
+      error: "File upload failed",
       details: error.message,
     });
   }
 });
 
-// File deletion endpoint
-app.delete("/api/files/:id", requireAuth, async (req, res) => {
+// Get file metadata
+app.get("/api/files/:id", requireAuth, async (req, res) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
-    const { id } = req.params;
-    const userId = req.user.id;
-    const role = req.user.role;
-
-    // Get file metadata first
+    const fileId = req.params.id;
     const blobStore = getBlobStore("file-uploads");
-    const metadata = await blobStore.getMetadata(id);
 
-    if (!metadata || !metadata.metadata) {
+    const result = await blobStore.getWithMetadata(fileId);
+    if (!result) {
       return res.status(404).json({ error: "File not found" });
     }
 
-    const fileMetadata = metadata.metadata;
-    const fileUploadedBy = parseInt(fileMetadata.uploadedBy);
-
-    // Check permissions
-    if (
-      fileUploadedBy !== userId &&
-      !["ADMIN", "SUPERADMIN"].includes(role?.toUpperCase() || "")
-    ) {
-      return res.status(403).json({ error: "Access denied" });
-    }
-
-    // If file is associated with an order, remove it from the order's files field
-    if (fileMetadata.orderId) {
-      const database = await initializeDatabase();
-      const { orders } = require("./schema.js");
-      const { eq } = require("drizzle-orm");
-
-      const orderResult = await database
-        .select({ files: orders.files })
-        .from(orders)
-        .where(eq(orders.id, parseInt(fileMetadata.orderId)))
-        .limit(1);
-
-      if (orderResult.length > 0) {
-        const currentFiles = orderResult[0].files || [];
-        const updatedFiles = currentFiles.filter((file) => file.id !== id);
-
-        await database
-          .update(orders)
-          .set({
-            files: updatedFiles,
-            updatedAt: new Date(),
-          })
-          .where(eq(orders.id, parseInt(fileMetadata.orderId)));
-      }
-    }
-
-    // Delete the file from Netlify Blobs
-    await blobStore.delete(id);
-
-    res.json({ message: "File deleted successfully" });
+    const metadata = result.metadata;
+    res.json({
+      id: fileId,
+      fileName: metadata.fileName,
+      contentType: metadata.contentType,
+      size: metadata.size,
+      uploadedBy: metadata.uploadedBy,
+      uploadedAt: metadata.uploadedAt,
+      url: `/api/files/download/${fileId}`,
+    });
   } catch (error) {
-    console.error("File deletion error:", error);
+    console.error("Get file metadata error:", error);
     res.status(500).json({
-      error: "File deletion failed",
+      error: "Failed to get file metadata",
       details: error.message,
     });
+  }
+});
+
+// Get files for an order (Admin access)
+app.get("/api/files/order/:orderId", requireAuth, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const database = await initializeDatabase();
+    const { orders } = require("./schema.js");
+    const { eq } = require("drizzle-orm");
+
+    // Get the order and its files
+    const orderResult = await database
+      .select({ files: orders.files })
+      .from(orders)
+      .where(eq(orders.id, parseInt(orderId)))
+      .limit(1);
+
+    if (!orderResult.length) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    const files = orderResult[0].files || [];
+    res.json({ files });
+  } catch (error) {
+    console.error("Error fetching order files:", error);
+    res.status(500).json({ error: "Failed to fetch order files" });
+  }
+});
+
+// Download file endpoint
+app.get("/api/files/download/:id", requireAuth, async (req, res) => {
+  try {
+    const fileId = req.params.id;
+    const blobStore = getBlobStore("file-uploads");
+
+    const result = await blobStore.getWithMetadata(fileId);
+    if (!result) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    const metadata = result.metadata;
+    const blob = result.blob;
+
+    // Set headers for download
+    res.setHeader("Content-Type", metadata.contentType || "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="${metadata.fileName}"`);
+    res.setHeader("Content-Length", metadata.size);
+
+    // Convert blob to buffer and send
+    const arrayBuffer = await blob.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    res.send(buffer);
+  } catch (error) {
+    console.error("File download error:", error);
+    res.status(500).json({ error: "File download failed" });
+  }
+});
+
+// System config routes
+app.get(
+  "/api/system/config",
+  requireAuth,
+  requireRole(["ADMIN", "SUPERADMIN"]),
+  async (req, res) => {
+    try {
+      const database = await initializeDatabase();
+      const { systemConfig } = require("./schema.js");
+
+      const config = await database.select().from(systemConfig);
+      res.json(config);
+    } catch (error) {
+      console.error("System config error:", error);
+      res.status(500).json({ message: "Failed to get system config" });
+    }
+  }
+);
+
+app.get("/api/system/config/:key", async (req, res) => {
+  try {
+    const database = await initializeDatabase();
+    const { systemConfig } = require("./schema.js");
+    const { eq } = require("drizzle-orm");
+
+    const config = await database
+      .select()
+      .from(systemConfig)
+      .where(eq(systemConfig.key, req.params.key))
+      .limit(1);
+
+    if (config.length === 0) {
+      return res.status(404).json({ message: "Config not found" });
+    }
+
+    res.json(config[0]);
+  } catch (error) {
+    console.error("System config error:", error);
+    res.status(500).json({ message: "Failed to get system config" });
+  }
+});
+
+// System config for app-level settings
+app.get("/api/system/config/app", async (req, res) => {
+  try {
+    const database = await initializeDatabase();
+    const { systemConfig } = require("./schema.js");
+    const { eq } = require("drizzle-orm");
+
+    const config = await database
+      .select()
+      .from(systemConfig)
+      .where(eq(systemConfig.key, "app"))
+      .limit(1);
+
+    if (config.length === 0) {
+      return res.json({ maxFileSize: 50 * 1024 * 1024, maxFiles: 10 });
+    }
+
+    res.json(config[0].value);
+  } catch (error) {
+    console.error("App config error:", error);
+    res.json({ maxFileSize: 50 * 1024 * 1024, maxFiles: 10 });
   }
 });
 

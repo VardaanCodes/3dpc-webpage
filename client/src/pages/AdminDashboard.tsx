@@ -695,15 +695,21 @@ export function AdminDashboard() {
                               : "Unknown"}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center space-x-2">
-                              <FileCode className="text-cyan-500 h-4 w-4" />
-                              <span className="text-sm text-white">
-                                {Array.isArray(order.files)
-                                  ? order.files.length
-                                  : 0}{" "}
-                                files
-                              </span>
-                            </div>
+                            <OrderDetailsDialog order={order}>
+                              <Button
+                                variant="ghost" 
+                                size="sm"
+                                className="flex items-center space-x-2 text-cyan-500 hover:text-cyan-300 hover:bg-cyan-900/20"
+                              >
+                                <FileCode className="h-4 w-4" />
+                                <span className="text-sm">
+                                  {Array.isArray(order.files)
+                                    ? order.files.length
+                                    : 0}{" "}
+                                  files
+                                </span>
+                              </Button>
+                            </OrderDetailsDialog>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center space-x-2">
