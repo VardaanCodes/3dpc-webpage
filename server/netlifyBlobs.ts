@@ -24,9 +24,30 @@ export class NetlifyBlobsService {
       );
       console.log("- CONTEXT:", process.env.CONTEXT);
 
-      const store = getStore(this.storeName);
-      console.log("Netlify Blobs store initialized successfully");
-      return store;
+      // Try automatic configuration first
+      try {
+        const store = getStore(this.storeName);
+        console.log("Netlify Blobs store initialized successfully (automatic)");
+        return store;
+      } catch (autoError) {
+        console.log("Automatic configuration failed, trying manual configuration");
+        console.log("Auto error:", autoError);
+        
+        // Fallback to manual configuration
+        if (!process.env.NETLIFY_SITE_ID || !process.env.NETLIFY_ACCESS_TOKEN) {
+          throw new Error("Missing required environment variables: NETLIFY_SITE_ID and NETLIFY_ACCESS_TOKEN");
+        }
+        
+        // Use the alternate getStore API with configuration object
+        const store = getStore({
+          name: this.storeName,
+          siteID: process.env.NETLIFY_SITE_ID,
+          token: process.env.NETLIFY_ACCESS_TOKEN,
+        });
+        
+        console.log("Netlify Blobs store initialized successfully (manual)");
+        return store;
+      }
     } catch (error) {
       console.error("Failed to initialize Netlify Blobs store:", error);
       console.error(

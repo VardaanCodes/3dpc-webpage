@@ -6,13 +6,16 @@
   "type": "commonjs",
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
+    "@netlify/blobs": "^10.0.3",
     "body-parser": "^1.20.1",
     "depd": "^2.0.0",
     "drizzle-orm": "^0.39.1",
     "express": "^4.18.2",
     "express-session": "^1.17.3",
     "firebase-admin": "^13.4.0",
+    "multer": "^1.4.5-lts.1",
     "serverless-http": "^3.2.0",
+    "uuid": "^9.0.0",
     "zod": "^3.24.2"
   }
 }
