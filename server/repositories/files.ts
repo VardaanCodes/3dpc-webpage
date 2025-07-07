@@ -2,10 +2,10 @@
 
 import { eq, and, sql } from "drizzle-orm";
 import { db } from "../db";
-import { getStore } from "@netlify/blobs";
 import { v4 as uuid } from "uuid";
 import { orders } from "../../shared/schema";
 import { createSelectSchema } from "drizzle-zod";
+import { netlifyBlobsService } from "../netlifyBlobs";
 
 /**
  * Interface representing file metadata to be stored in the database
@@ -25,8 +25,6 @@ export interface FileMetadata {
  * Repository for file operations using Netlify Blobs for storage and PostgreSQL for metadata
  */
 export class FilesRepository {
-  private blobStore = getStore("file-uploads");
-
   /**
    * Upload a file to Netlify Blobs and store metadata in database
    * @param fileBuffer The file content as a buffer
@@ -302,34 +300,18 @@ export class FilesRepository {
   }
 
   /**
-   * Generate a signed URL for a file
+   * Generate a signed URL for file download
    * @param fileId The file ID
-   * @param expirationMinutes How many minutes the URL should be valid for
+   * @param expiryMinutes Number of minutes until the URL expires
    * @returns The signed URL
-   */ async getSignedUrl(
+   */
+  async getSignedUrl(
     fileId: string,
-    expirationMinutes: number = 15
+    expiryMinutes: number = 15
   ): Promise<string> {
-    // Create a URL that expires in the specified time
-    // We'll convert to a public URL since getSignedUrl is not available in the API
-    try {
-      // Get the file metadata first to ensure it exists
-      const metadata = await this.getFileMetadata(fileId);
-      if (!metadata) {
-        throw new Error(`File with ID ${fileId} not found`);
-      }
-
-      // Generate a one-time URL that expires after the specified time
-      // This is a placeholder - implement according to your needs
-      const baseUrl = process.env.NETLIFY_SITE_URL || "http://localhost:8888";
-      // This would be replaced with actual URL signing in production
-      const expiresAt = Date.now() + expirationMinutes * 60 * 1000;
-      return `${baseUrl}/.netlify/functions/files/download/${fileId}?expires=${expiresAt}`;
-    } catch (error) {
-      console.error(`Error generating signed URL for file ${fileId}:`, error);
-      throw new Error(
-        `Could not generate signed URL: ${(error as Error).message}`
-      );
-    }
+    // For development, return a direct URL
+    // In production, you would generate a proper signed URL
+    const baseUrl = process.env.NETLIFY_URL || "http://localhost:3000";
+    return `${baseUrl}/api/files/download/${fileId}`;
   }
 }

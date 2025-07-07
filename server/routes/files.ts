@@ -120,6 +120,21 @@ router.post(
         orderId ? parseInt(orderId, 10) : undefined
       );
 
+      // Update user's file upload count
+      const currentUser = await db
+        .select({ fileUploadsUsed: users.fileUploadsUsed })
+        .from(users)
+        .where(eq(users.id, userDbId))
+        .limit(1);
+
+      if (currentUser.length > 0) {
+        const currentCount = currentUser[0].fileUploadsUsed || 0;
+        await db
+          .update(users)
+          .set({ fileUploadsUsed: currentCount + 1 })
+          .where(eq(users.id, userDbId));
+      }
+
       // Log the upload in audit logs (still using Firestore for now)
       // This will be migrated to PostgreSQL audit logs in the future
       await auditLogsCollection.add({
@@ -136,6 +151,7 @@ router.post(
       res.json({
         success: true,
         file: fileMetadata,
+        id: fileMetadata.id, // Add this for backward compatibility
       });
     } catch (error: any) {
       console.error("File upload error:", error);
@@ -218,10 +234,15 @@ router.delete("/files/:id", authenticateUser, async (req, res) => {
 });
 
 // Download a file
-router.get("/files/:id/download", authenticateUser, async (req, res) => {
+router.get("/download/:id", authenticateUser, async (req, res) => {
   try {
     const { id } = req.params;
-    const { email, role, id: userId } = req.user as any;
+    const userEmail = req.user?.email;
+    const userRole = req.user?.role;
+
+    if (!userEmail) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
 
     // Get file metadata first
     const metadata = await filesRepository.getFileMetadata(id);
@@ -230,75 +251,50 @@ router.get("/files/:id/download", authenticateUser, async (req, res) => {
       return res.status(404).json({ error: "File not found" });
     }
 
-    // Check if file is associated with an order and verify permissions
-    if (metadata.orderId) {
-      const orderResult = await db
-        .select()
-        .from(orders)
-        .where(eq(orders.id, metadata.orderId))
-        .limit(1);
+    // Get user ID from email
+    const userResult = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, userEmail))
+      .limit(1);
 
-      if (!orderResult.length) {
-        return res.status(404).json({ error: "Associated order not found" });
-      }
-
-      const order = orderResult[0];
-
-      // Check if user owns the order or is admin
-      if (
-        order.userId !== userId &&
-        !["ADMIN", "SUPERADMIN"].includes(role?.toUpperCase() || "")
-      ) {
-        return res.status(403).json({ error: "Access denied" });
-      }
-
-      // Check file expiration (default 30 days, configurable)
-      if (order.submittedAt) {
-        const submittedDate = new Date(order.submittedAt);
-        const expiryDate = new Date(submittedDate);
-        expiryDate.setDate(expiryDate.getDate() + 30); // TODO: Make configurable
-
-        if (new Date() > expiryDate) {
-          return res.status(410).json({
-            error: "File has expired and is no longer available for download",
-          });
-        }
-      }
+    if (!userResult.length) {
+      return res.status(404).json({ error: "User not found" });
     }
 
-    // Get the file data from Netlify Blobs
+    const userId = userResult[0].id;
+
+    // Check permissions - user must own the file or be admin
+    if (
+      metadata.uploadedBy !== userId &&
+      !["ADMIN", "SUPERADMIN"].includes(userRole?.toUpperCase() || "")
+    ) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // Get file data
     const fileData = await filesRepository.getFileData(id);
 
     if (!fileData) {
       return res.status(404).json({ error: "File data not found" });
     }
 
-    // Log the download in audit logs
-    await auditLogsCollection.add({
-      userId: email,
-      action: "DOWNLOAD",
-      entityType: "FILE",
-      entityId: id,
-      details: `File ${metadata.fileName} downloaded`,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    // Set headers for file download
-    res.setHeader(
-      "Content-Type",
-      metadata.contentType || "application/octet-stream"
-    );
+    // Set proper headers for file download
+    res.setHeader("Content-Type", metadata.contentType);
     res.setHeader(
       "Content-Disposition",
       `attachment; filename="${metadata.fileName}"`
     );
     res.setHeader("Content-Length", metadata.size.toString());
 
-    // Send the file data
-    res.send(Buffer.from(fileData));
+    // Send file data
+    const buffer = Buffer.from(fileData);
+    res.send(buffer);
   } catch (error: any) {
     console.error("File download error:", error);
-    res.status(500).json({ error: "Failed to download file" });
+    res
+      .status(500)
+      .json({ error: "File download failed", details: error.message });
   }
 });
 
@@ -321,6 +317,34 @@ router.get("/files/order/:orderId", authenticateUser, async (req, res) => {
   } catch (error: any) {
     console.error("Error listing files:", error);
     res.status(500).json({ error: "Could not list files" });
+  }
+});
+
+// Get files for an order (admin only)
+router.get("/order/:orderId", authenticateUser, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const userRole = req.user?.role;
+
+    // Check if user is admin
+    if (!["ADMIN", "SUPERADMIN"].includes(userRole?.toUpperCase() || "")) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+
+    // Get files for the order
+    const files = await filesRepository.getFilesByOrderId(
+      parseInt(orderId, 10)
+    );
+
+    res.json({ files });
+  } catch (error: any) {
+    console.error("Error getting order files:", error);
+    res
+      .status(500)
+      .json({
+        error: "Could not retrieve order files",
+        details: error.message,
+      });
   }
 });
 

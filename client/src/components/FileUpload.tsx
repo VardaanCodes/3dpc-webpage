@@ -97,10 +97,15 @@ export function FileUpload({
       });
 
       if (!response.ok) {
-        throw new Error(`Upload failed: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error("Upload error response:", errorText);
+        throw new Error(
+          `Upload failed: ${response.status} ${response.statusText}`
+        );
       }
 
       const result = await response.json();
+      console.log("Upload response:", result);
 
       // Update file with uploaded metadata
       setFiles((prev) =>
@@ -110,7 +115,7 @@ export function FileUpload({
                 ...f,
                 uploadStatus: "completed",
                 uploadProgress: 100,
-                uploadedFileId: result.file.id,
+                uploadedFileId: result.file?.id || result.id,
               }
             : f
         )

@@ -212,8 +212,8 @@ const initializeFirebase = () => {
     // Import firebase-admin dynamically to avoid cold start issues
     admin = require("firebase-admin");
 
-      if (admin.apps.length === 0) {
-        const serviceAccountKey = process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT_KEY;
+    if (admin.apps.length === 0) {
+      const serviceAccountKey = process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT_KEY;
 
       if (serviceAccountKey) {
         try {

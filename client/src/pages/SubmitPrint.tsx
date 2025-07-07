@@ -125,9 +125,46 @@ export function SubmitPrint() {
         contentType: file.type,
       }));
 
+    console.log(
+      "Files status:",
+      files.map((f) => ({
+        name: f.name,
+        status: f.uploadStatus,
+        id: f.uploadedFileId,
+      }))
+    );
+    console.log("Uploaded files:", uploadedFiles);
+
+    // Check if we have pending uploads
+    const pendingUploads = files.filter(
+      (f) => f.uploadStatus === "uploading" || f.uploadStatus === "pending"
+    );
+
+    if (pendingUploads.length > 0) {
+      toast({
+        title: "Upload in progress",
+        description: `Please wait for ${pendingUploads.length} file(s) to finish uploading before submitting.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if we have failed uploads
+    const failedUploads = files.filter((f) => f.uploadStatus === "error");
+
+    if (failedUploads.length > 0) {
+      toast({
+        title: "Upload failed",
+        description: `${failedUploads.length} file(s) failed to upload. Please retry or remove them before submitting.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // If user added files but none uploaded successfully
     if (files.length > 0 && uploadedFiles.length === 0) {
       toast({
-        title: "File upload incomplete",
+        title: "No files uploaded",
         description: "Please wait for all files to upload before submitting.",
         variant: "destructive",
       });
