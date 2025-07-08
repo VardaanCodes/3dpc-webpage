@@ -6,7 +6,7 @@
   "type": "commonjs",
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
-    "@netlify/blobs": "^6.5.0",
+    "@netlify/blobs": "^10.0.3",
     "body-parser": "^1.20.1",
     "depd": "^2.0.0",
     "drizzle-orm": "^0.39.1",

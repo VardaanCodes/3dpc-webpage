@@ -6,7 +6,7 @@ const serverless = require("serverless-http");
 const session = require("express-session");
 const multer = require("multer");
 const crypto = require("crypto");
-const { getStore } = require("@netlify/blobs");
+const { getStore, getDeployStore } = require("@netlify/blobs");
 
 // Import database schema once at the top to avoid module loading issues
 const schema = require("./schema.js");
@@ -18,16 +18,33 @@ const {
   auditLogs,
   systemConfig,
   insertUserSchema,
-  insertOrderSchema
+  insertOrderSchema,
 } = schema;
 
-// Netlify Blobs helper function
+// Netlify Blobs helper function with proper environment handling
 const getBlobStore = (storeName) => {
   try {
-    return getStore(storeName);
+    console.log(`🔍 Attempting to get blob store "${storeName}"`);
+    
+    // First try getStore (global scope) as it's more commonly available
+    const store = getStore(storeName);
+    console.log(`✅ Successfully got global blob store "${storeName}"`);
+    return store;
+    
   } catch (error) {
-    console.error(`Failed to get blob store "${storeName}":`, error);
-    throw new Error(`Blob store "${storeName}" is not available`);
+    console.error(`❌ Failed to get global blob store "${storeName}":`, error);
+    
+    // Fallback: try deploy-specific store
+    try {
+      console.log(`🔄 Trying deploy-specific store for "${storeName}"`);
+      const deployStore = getDeployStore(storeName);
+      console.log(`✅ Successfully got deploy blob store "${storeName}"`);
+      return deployStore;
+      
+    } catch (fallbackError) {
+      console.error(`❌ Fallback deploy store also failed:`, fallbackError);
+      throw new Error(`Blob store "${storeName}" is not available. Global error: ${error.message}, Deploy error: ${fallbackError.message}`);
+    }
   }
 };
 
@@ -744,8 +761,8 @@ app.post("/api/user/register", async (req, res) => {
         .values(validatedData)
         .returning();
 
-      console.log("New user created:", newUser[0].email);            // Add audit log for user creation
-            await database.insert(auditLogs).values({
+      console.log("New user created:", newUser[0].email); // Add audit log for user creation
+      await database.insert(auditLogs).values({
         userId: newUser[0].id,
         action: "USER_CREATED",
         entityType: "user",
@@ -1162,14 +1179,19 @@ app.post(
 
       // Generate unique file ID
       const fileId = crypto.randomUUID();
-      console.log("🆔 Generated file ID:", fileId);
-
-      // Upload file to Netlify Blobs
+      console.log("🆔 Generated file ID:", fileId);      // Upload file to Netlify Blobs
       console.log("☁️ Uploading to Netlify Blobs...");
-      
+      console.log("🔧 Environment context:", {
+        CONTEXT: process.env.CONTEXT,
+        NODE_ENV: process.env.NODE_ENV,
+        NETLIFY: process.env.NETLIFY,
+        NETLIFY_DEV: process.env.NETLIFY_DEV
+      });
+
       let blobStore;
       try {
         blobStore = getBlobStore("file-uploads");
+        console.log("✅ Successfully got blob store");
       } catch (blobError) {
         console.error("❌ Failed to get blob store:", blobError);
         return res.status(500).json({
