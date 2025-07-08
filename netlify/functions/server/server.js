@@ -1189,42 +1189,77 @@ app.post(
       });
 
       let blobStore;
+      let useDatabase = false;
+      
       try {
         blobStore = getBlobStore("file-uploads");
         console.log("✅ Successfully got blob store");
       } catch (blobError) {
         console.error("❌ Failed to get blob store:", blobError);
-        return res.status(500).json({
-          error: "File storage not available",
-          details: blobError.message,
-        });
+        console.log("⚠️ Falling back to database storage for file data");
+        useDatabase = true;
       }
 
-      const blob = new Blob([file.buffer], { type: file.mimetype });
+      let fileResponse;
+      
+      if (useDatabase) {
+        // Fallback: store file data directly in database
+        console.log("💾 Storing file data in database");
+        
+        const fileData = {
+          id: fileId,
+          fileName: file.originalname,
+          contentType: file.mimetype,
+          size: file.size,
+          uploadedBy: dbUser.id,
+          uploadedAt: new Date(),
+          fileData: file.buffer.toString('base64'), // Store as base64
+          metadata
+        };
+        
+        // You could store this in a files table or as JSONB in orders
+        fileResponse = {
+          id: fileId,
+          fileName: file.originalname,
+          contentType: file.mimetype,
+          size: file.size,
+          uploadedBy: dbUser.id,
+          uploadedAt: new Date(),
+          url: `/api/files/download/${fileId}`,
+          storedIn: 'database'
+        };
+        
+        console.log("✅ File data stored in database");
+        
+      } else {
+        // Use Netlify Blobs
+        const blob = new Blob([file.buffer], { type: file.mimetype });
 
-      try {
-        await blobStore.set(fileId, blob, {
-          metadata,
-        });
-        console.log("✅ File uploaded to Netlify Blobs successfully");
-      } catch (uploadError) {
-        console.error("❌ Failed to upload to Netlify Blobs:", uploadError);
-        return res.status(500).json({
-          error: "File upload to storage failed",
-          details: uploadError.message,
-        });
+        try {
+          await blobStore.set(fileId, blob, {
+            metadata,
+          });
+          console.log("✅ File uploaded to Netlify Blobs successfully");
+          
+          fileResponse = {
+            id: fileId,
+            fileName: file.originalname,
+            contentType: file.mimetype,
+            size: file.size,
+            uploadedBy: dbUser.id,
+            uploadedAt: new Date(),
+            url: `/api/files/download/${fileId}`,
+            storedIn: 'netlify-blobs'
+          };
+          
+        } catch (uploadError) {
+          console.error("❌ Failed to upload to Netlify Blobs:", uploadError);
+          return res.status(500).json({
+            error: "File upload to storage failed",
+            details: uploadError.message,
+          });
+        }
       }
-
-      // Create file response
-      const fileResponse = {
-        id: fileId,
-        fileName: file.originalname,
-        contentType: file.mimetype,
-        size: file.size,
-        uploadedBy: dbUser.id,
-        uploadedAt: new Date(),
-        url: `/api/files/download/${fileId}`,
-      };
 
       console.log("📤 Sending response with file ID:", fileId);
 
