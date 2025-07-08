@@ -25,25 +25,25 @@ const {
 const getBlobStore = (storeName) => {
   try {
     console.log(`🔍 Attempting to get blob store "${storeName}"`);
-    
+
     // First try getStore (global scope) as it's more commonly available
     const store = getStore(storeName);
     console.log(`✅ Successfully got global blob store "${storeName}"`);
     return store;
-    
   } catch (error) {
     console.error(`❌ Failed to get global blob store "${storeName}":`, error);
-    
+
     // Fallback: try deploy-specific store
     try {
       console.log(`🔄 Trying deploy-specific store for "${storeName}"`);
       const deployStore = getDeployStore(storeName);
       console.log(`✅ Successfully got deploy blob store "${storeName}"`);
       return deployStore;
-      
     } catch (fallbackError) {
       console.error(`❌ Fallback deploy store also failed:`, fallbackError);
-      throw new Error(`Blob store "${storeName}" is not available. Global error: ${error.message}, Deploy error: ${fallbackError.message}`);
+      throw new Error(
+        `Blob store "${storeName}" is not available. Global error: ${error.message}, Deploy error: ${fallbackError.message}`
+      );
     }
   }
 };
@@ -1179,13 +1179,13 @@ app.post(
 
       // Generate unique file ID
       const fileId = crypto.randomUUID();
-      console.log("🆔 Generated file ID:", fileId);      // Upload file to Netlify Blobs
+      console.log("🆔 Generated file ID:", fileId); // Upload file to Netlify Blobs
       console.log("☁️ Uploading to Netlify Blobs...");
       console.log("🔧 Environment context:", {
         CONTEXT: process.env.CONTEXT,
         NODE_ENV: process.env.NODE_ENV,
         NETLIFY: process.env.NETLIFY,
-        NETLIFY_DEV: process.env.NETLIFY_DEV
+        NETLIFY_DEV: process.env.NETLIFY_DEV,
       });
 
       let blobStore;
