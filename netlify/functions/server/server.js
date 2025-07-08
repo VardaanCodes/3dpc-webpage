@@ -873,7 +873,11 @@ app.post("/api/orders", requireAuth, async (req, res) => {
     console.log("📝 Order creation request received");
     console.log("👤 User:", req.user.email);
     console.log("📄 Request body:", req.body);
-    console.log("🗂️ Files in request:", req.body.files ? req.body.files.length : 0, "files");
+    console.log(
+      "🗂️ Files in request:",
+      req.body.files ? req.body.files.length : 0,
+      "files"
+    );
 
     const database = await initializeDatabase();
     const { orders, insertOrderSchema, clubs } = require("./schema.js");
@@ -886,13 +890,8 @@ app.post("/api/orders", requireAuth, async (req, res) => {
 
     console.log("🔄 Processing order data:", {
       ...orderData,
-      files: orderData.files ? `${orderData.files.length} files` : "No files"
+      files: orderData.files ? `${orderData.files.length} files` : "No files",
     });
-
-    const orderData = {
-      ...req.body,
-      userId: req.user.id,
-    };
 
     const validatedData = insertOrderSchema.parse(orderData);
 
@@ -962,7 +961,7 @@ app.post("/api/orders", requireAuth, async (req, res) => {
     console.log("✅ Order created successfully:", {
       id: newOrder[0].id,
       orderId: newOrder[0].orderId,
-      filesIncluded: newOrder[0].files ? newOrder[0].files.length : 0
+      filesIncluded: newOrder[0].files ? newOrder[0].files.length : 0,
     });
 
     res.status(201).json(newOrder[0]);
@@ -1032,8 +1031,9 @@ app.get(
             new Date(o.actualCompletionTime) >= today
         ).length,
         avgProcessingTime: "3.2 days",
-        failed: allOrders.filter((o) => ["failed", "cancelled"].includes(o.status))
-          .length,
+        failed: allOrders.filter((o) =>
+          ["failed", "cancelled"].includes(o.status)
+        ).length,
         totalUsers: allUsers.length,
       };
 
@@ -1101,93 +1101,103 @@ app.get(
 
 // File upload endpoint
 const upload = multer();
-app.post("/api/files/upload", requireAuth, upload.single("file"), async (req, res) => {
-  try {
-    console.log("📥 File upload request received");
-    console.log("🔍 User:", req.user?.email);
-    console.log("📄 File info:", req.file ? {
-      originalname: req.file.originalname,
-      mimetype: req.file.mimetype,
-      size: req.file.size
-    } : "No file");
+app.post(
+  "/api/files/upload",
+  requireAuth,
+  upload.single("file"),
+  async (req, res) => {
+    try {
+      console.log("📥 File upload request received");
+      console.log("🔍 User:", req.user?.email);
+      console.log(
+        "📄 File info:",
+        req.file
+          ? {
+              originalname: req.file.originalname,
+              mimetype: req.file.mimetype,
+              size: req.file.size,
+            }
+          : "No file"
+      );
 
-    const file = req.file;
-    const user = req.user;
+      const file = req.file;
+      const user = req.user;
 
-    if (!file) {
-      console.log("❌ No file in request");
-      return res.status(400).json({ error: "No file uploaded" });
+      if (!file) {
+        console.log("❌ No file in request");
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      // Get user ID from database based on email
+      const database = await initializeDatabase();
+      const { users } = require("./schema.js");
+      const { eq } = require("drizzle-orm");
+
+      const userResult = await database
+        .select()
+        .from(users)
+        .where(eq(users.email, user.email))
+        .limit(1);
+
+      if (userResult.length === 0) {
+        console.log("❌ User not found in database:", user.email);
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const dbUser = userResult[0];
+      console.log("✅ User found:", dbUser.email, "ID:", dbUser.id);
+
+      // Create metadata object
+      const metadata = {
+        fileName: file.originalname,
+        contentType: file.mimetype,
+        size: file.size,
+        uploadedBy: dbUser.id,
+        uploadedAt: new Date().toISOString(),
+      };
+
+      // Generate unique file ID
+      const fileId = crypto.randomUUID();
+      console.log("🆔 Generated file ID:", fileId);
+
+      // Upload file to Netlify Blobs
+      const blobStore = getBlobStore("file-uploads");
+      const blob = new Blob([file.buffer], { type: file.mimetype });
+
+      console.log("☁️ Uploading to Netlify Blobs...");
+      await blobStore.set(fileId, blob, {
+        metadata,
+      });
+      console.log("✅ File uploaded to Netlify Blobs successfully");
+
+      // Create file response
+      const fileResponse = {
+        id: fileId,
+        fileName: file.originalname,
+        contentType: file.mimetype,
+        size: file.size,
+        uploadedBy: dbUser.id,
+        uploadedAt: new Date(),
+        url: `/api/files/download/${fileId}`,
+      };
+
+      console.log("📤 Sending response with file ID:", fileId);
+
+      res.json({
+        success: true,
+        message: "File uploaded successfully",
+        file: fileResponse,
+        id: fileId, // Add for compatibility with frontend
+      });
+    } catch (error) {
+      console.error("❌ File upload error:", error);
+      res.status(500).json({
+        error: "File upload failed",
+        details: error.message,
+      });
     }
-
-    // Get user ID from database based on email
-    const database = await initializeDatabase();
-    const { users } = require("./schema.js");
-    const { eq } = require("drizzle-orm");
-
-    const userResult = await database
-      .select()
-      .from(users)
-      .where(eq(users.email, user.email))
-      .limit(1);
-
-    if (userResult.length === 0) {
-      console.log("❌ User not found in database:", user.email);
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    const dbUser = userResult[0];
-    console.log("✅ User found:", dbUser.email, "ID:", dbUser.id);
-
-    // Create metadata object
-    const metadata = {
-      fileName: file.originalname,
-      contentType: file.mimetype,
-      size: file.size,
-      uploadedBy: dbUser.id,
-      uploadedAt: new Date().toISOString(),
-    };
-
-    // Generate unique file ID
-    const fileId = crypto.randomUUID();
-    console.log("🆔 Generated file ID:", fileId);
-
-    // Upload file to Netlify Blobs
-    const blobStore = getBlobStore("file-uploads");
-    const blob = new Blob([file.buffer], { type: file.mimetype });
-
-    console.log("☁️ Uploading to Netlify Blobs...");
-    await blobStore.set(fileId, blob, {
-      metadata,
-    });
-    console.log("✅ File uploaded to Netlify Blobs successfully");
-
-    // Create file response
-    const fileResponse = {
-      id: fileId,
-      fileName: file.originalname,
-      contentType: file.mimetype,
-      size: file.size,
-      uploadedBy: dbUser.id,
-      uploadedAt: new Date(),
-      url: `/api/files/download/${fileId}`,
-    };
-
-    console.log("📤 Sending response with file ID:", fileId);
-
-    res.json({
-      success: true,
-      message: "File uploaded successfully",
-      file: fileResponse,
-      id: fileId, // Add for compatibility with frontend
-    });
-  } catch (error) {
-    console.error("❌ File upload error:", error);
-    res.status(500).json({
-      error: "File upload failed",
-      details: error.message,
-    });
   }
-});
+);
 
 // Get file metadata
 app.get("/api/files/:id", requireAuth, async (req, res) => {
@@ -1261,8 +1271,14 @@ app.get("/api/files/download/:id", requireAuth, async (req, res) => {
     const blob = result.blob;
 
     // Set headers for download
-    res.setHeader("Content-Type", metadata.contentType || "application/octet-stream");
-    res.setHeader("Content-Disposition", `attachment; filename="${metadata.fileName}"`);
+    res.setHeader(
+      "Content-Type",
+      metadata.contentType || "application/octet-stream"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${metadata.fileName}"`
+    );
     res.setHeader("Content-Length", metadata.size);
 
     // Convert blob to buffer and send
