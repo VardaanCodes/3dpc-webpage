@@ -6,6 +6,30 @@ const serverless = require("serverless-http");
 const session = require("express-session");
 const multer = require("multer");
 const crypto = require("crypto");
+const { getStore } = require("@netlify/blobs");
+
+// Import database schema once at the top to avoid module loading issues
+const schema = require("./schema.js");
+const {
+  users,
+  orders,
+  clubs,
+  batches,
+  auditLogs,
+  systemConfig,
+  insertUserSchema,
+  insertOrderSchema
+} = schema;
+
+// Netlify Blobs helper function
+const getBlobStore = (storeName) => {
+  try {
+    return getStore(storeName);
+  } catch (error) {
+    console.error(`Failed to get blob store "${storeName}":`, error);
+    throw new Error(`Blob store "${storeName}" is not available`);
+  }
+};
 
 // Create Express app
 const app = express();
@@ -70,7 +94,6 @@ app.use(async (req, res, next) => {
         }
         // Initialize database connection only when needed
         const database = await initializeDatabase();
-        const { users, insertUserSchema } = require("./schema.js");
         const { eq } = require("drizzle-orm");
         const userResults = await database
           .select()
@@ -111,7 +134,6 @@ app.use(async (req, res, next) => {
               user: newUser[0],
               timestamp: Date.now(),
             });
-            const { auditLogs } = require("./schema.js");
             database
               .insert(auditLogs)
               .values({
@@ -273,7 +295,6 @@ const initializeDatabase = async () => {
     // Import database modules
     const { neon } = require("@neondatabase/serverless");
     const { drizzle } = require("drizzle-orm/neon-http");
-    const schema = require("./schema.js");
 
     // Use NETLIFY_DATABASE_URL if available, otherwise fall back to DATABASE_URL
     const databaseUrl =
@@ -528,7 +549,6 @@ app.use(async (req, res, next) => {
         const database = await initializeDatabase();
 
         // Query user from database
-        const { users } = require("./schema.js");
         const { eq } = require("drizzle-orm");
 
         const userResults = await database
@@ -554,8 +574,6 @@ app.use(async (req, res, next) => {
 
           // Auto-create user with basic information
           try {
-            const { insertUserSchema } = require("./schema.js");
-
             const newUserData = {
               email: decodedToken.email,
               displayName:
@@ -579,7 +597,6 @@ app.use(async (req, res, next) => {
             console.log("Auto-created new user:", req.user.email);
 
             // Add audit log for user auto-creation
-            const { auditLogs } = require("./schema.js");
             await database.insert(auditLogs).values({
               userId: newUser[0].id,
               action: "USER_AUTO_CREATED",
@@ -664,7 +681,6 @@ app.post("/api/user/register", async (req, res) => {
     console.log("Registration request body:", req.body);
 
     const database = await initializeDatabase();
-    const { users, insertUserSchema } = require("./schema.js");
     const { eq } = require("drizzle-orm");
 
     // Validate email domain - only allow @smail.iitm.ac.in
@@ -728,11 +744,8 @@ app.post("/api/user/register", async (req, res) => {
         .values(validatedData)
         .returning();
 
-      console.log("New user created:", newUser[0].email);
-
-      // Add audit log for user creation
-      const { auditLogs } = require("./schema.js");
-      await database.insert(auditLogs).values({
+      console.log("New user created:", newUser[0].email);            // Add audit log for user creation
+            await database.insert(auditLogs).values({
         userId: newUser[0].id,
         action: "USER_CREATED",
         entityType: "user",
@@ -791,7 +804,6 @@ app.post("/api/user/logout", (req, res) => {
 app.get("/api/clubs", async (req, res) => {
   try {
     const database = await initializeDatabase();
-    const { clubs } = require("./schema.js");
 
     const allClubs = await database.select().from(clubs);
     res.json(allClubs);
@@ -809,7 +821,6 @@ app.get("/api/clubs/search", async (req, res) => {
     }
 
     const database = await initializeDatabase();
-    const { clubs } = require("./schema.js");
     const { ilike } = require("drizzle-orm");
 
     const searchResults = await database
@@ -832,7 +843,6 @@ app.get("/api/orders", requireAuth, async (req, res) => {
     }
 
     const database = await initializeDatabase();
-    const { orders, users, clubs } = require("./schema.js");
     const { eq } = require("drizzle-orm");
 
     let orderQuery = database
@@ -880,7 +890,6 @@ app.post("/api/orders", requireAuth, async (req, res) => {
     );
 
     const database = await initializeDatabase();
-    const { orders, insertOrderSchema, clubs } = require("./schema.js");
     const { sql, like, eq } = require("drizzle-orm");
 
     const orderData = {
@@ -980,7 +989,6 @@ app.get("/api/stats/user", requireAuth, async (req, res) => {
     if (!req.user) return res.status(401).json({ message: "Unauthorized" });
 
     const database = await initializeDatabase();
-    const { orders } = require("./schema.js");
     const { eq, count } = require("drizzle-orm");
 
     const userOrderCount = await database
@@ -1006,7 +1014,6 @@ app.get(
   async (req, res) => {
     try {
       const database = await initializeDatabase();
-      const { orders, batches, users } = require("./schema.js");
 
       const allOrders = await database.select().from(orders);
       const allBatches = await database.select().from(batches);
@@ -1053,7 +1060,6 @@ app.get(
   async (req, res) => {
     try {
       const database = await initializeDatabase();
-      const { orders, users, batches } = require("./schema.js");
 
       const allOrders = await database.select().from(orders);
       const allUsers = await database.select().from(users);
@@ -1085,7 +1091,6 @@ app.get(
   async (req, res) => {
     try {
       const database = await initializeDatabase();
-      const { auditLogs } = require("./schema.js");
 
       const logs = await database
         .select()
@@ -1130,7 +1135,6 @@ app.post(
 
       // Get user ID from database based on email
       const database = await initializeDatabase();
-      const { users } = require("./schema.js");
       const { eq } = require("drizzle-orm");
 
       const userResult = await database
@@ -1161,14 +1165,33 @@ app.post(
       console.log("🆔 Generated file ID:", fileId);
 
       // Upload file to Netlify Blobs
-      const blobStore = getBlobStore("file-uploads");
+      console.log("☁️ Uploading to Netlify Blobs...");
+      
+      let blobStore;
+      try {
+        blobStore = getBlobStore("file-uploads");
+      } catch (blobError) {
+        console.error("❌ Failed to get blob store:", blobError);
+        return res.status(500).json({
+          error: "File storage not available",
+          details: blobError.message,
+        });
+      }
+
       const blob = new Blob([file.buffer], { type: file.mimetype });
 
-      console.log("☁️ Uploading to Netlify Blobs...");
-      await blobStore.set(fileId, blob, {
-        metadata,
-      });
-      console.log("✅ File uploaded to Netlify Blobs successfully");
+      try {
+        await blobStore.set(fileId, blob, {
+          metadata,
+        });
+        console.log("✅ File uploaded to Netlify Blobs successfully");
+      } catch (uploadError) {
+        console.error("❌ Failed to upload to Netlify Blobs:", uploadError);
+        return res.status(500).json({
+          error: "File upload to storage failed",
+          details: uploadError.message,
+        });
+      }
 
       // Create file response
       const fileResponse = {
@@ -1234,7 +1257,6 @@ app.get("/api/files/order/:orderId", requireAuth, async (req, res) => {
   try {
     const { orderId } = req.params;
     const database = await initializeDatabase();
-    const { orders } = require("./schema.js");
     const { eq } = require("drizzle-orm");
 
     // Get the order and its files
@@ -1299,7 +1321,6 @@ app.get(
   async (req, res) => {
     try {
       const database = await initializeDatabase();
-      const { systemConfig } = require("./schema.js");
 
       const config = await database.select().from(systemConfig);
       res.json(config);
@@ -1313,7 +1334,6 @@ app.get(
 app.get("/api/system/config/:key", async (req, res) => {
   try {
     const database = await initializeDatabase();
-    const { systemConfig } = require("./schema.js");
     const { eq } = require("drizzle-orm");
 
     const config = await database
@@ -1337,7 +1357,6 @@ app.get("/api/system/config/:key", async (req, res) => {
 app.get("/api/system/config/app", async (req, res) => {
   try {
     const database = await initializeDatabase();
-    const { systemConfig } = require("./schema.js");
     const { eq } = require("drizzle-orm");
 
     const config = await database
