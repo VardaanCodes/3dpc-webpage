@@ -35,8 +35,7 @@
     "firebase-admin",
     "@neondatabase/serverless",
     "drizzle-orm",
-    "zod",
-    "@netlify/blobs"
+    "zod"
   ]
 
 # Headers for security and performance
