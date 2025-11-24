@@ -6,7 +6,6 @@ const serverless = require("serverless-http");
 const session = require("express-session");
 const multer = require("multer");
 const crypto = require("crypto");
-const { getStore, getDeployStore } = require("@netlify/blobs");
 
 // Import database schema once at the top to avoid module loading issues
 const schema = require("./schema.js");
@@ -21,30 +20,98 @@ const {
   insertOrderSchema,
 } = schema;
 
-// Netlify Blobs helper function with proper environment handling
-const getBlobStore = (storeName) => {
+// File storage helper function using database instead of Netlify Blobs
+const storeFileInDatabase = async (fileId, fileBuffer, metadata, database) => {
   try {
-    console.log(`🔍 Attempting to get blob store "${storeName}"`);
+    console.log(`� Storing file "${fileId}" in database`);
 
-    // First try getStore (global scope) as it's more commonly available
-    const store = getStore(storeName);
-    console.log(`✅ Successfully got global blob store "${storeName}"`);
-    return store;
-  } catch (error) {
-    console.error(`❌ Failed to get global blob store "${storeName}":`, error);
+    // Store file data as base64 in the system_config table
+    const fileData = {
+      id: fileId,
+      fileName: metadata.fileName,
+      contentType: metadata.contentType,
+      size: metadata.size,
+      uploadedBy: metadata.uploadedBy,
+      uploadedAt: metadata.uploadedAt,
+      data: fileBuffer.toString("base64"),
+    };
 
-    // Fallback: try deploy-specific store
-    try {
-      console.log(`🔄 Trying deploy-specific store for "${storeName}"`);
-      const deployStore = getDeployStore(storeName);
-      console.log(`✅ Successfully got deploy blob store "${storeName}"`);
-      return deployStore;
-    } catch (fallbackError) {
-      console.error(`❌ Fallback deploy store also failed:`, fallbackError);
-      throw new Error(
-        `Blob store "${storeName}" is not available. Global error: ${error.message}, Deploy error: ${fallbackError.message}`
-      );
+    // Use system_config table to store file data as JSON
+    const { eq } = require("drizzle-orm");
+
+    // Check if file already exists
+    const existingFile = await database
+      .select()
+      .from(systemConfig)
+      .where(eq(systemConfig.key, `file_${fileId}`))
+      .limit(1);
+
+    if (existingFile.length > 0) {
+      // Update existing file
+      await database
+        .update(systemConfig)
+        .set({
+          value: fileData,
+          updatedAt: new Date(),
+          updatedBy: metadata.uploadedBy,
+        })
+        .where(eq(systemConfig.key, `file_${fileId}`));
+    } else {
+      // Insert new file
+      await database.insert(systemConfig).values({
+        key: `file_${fileId}`,
+        value: fileData,
+        description: `File storage for ${metadata.fileName}`,
+        updatedBy: metadata.uploadedBy,
+        updatedAt: new Date(),
+      });
     }
+
+    console.log(`✅ File "${fileId}" stored successfully in database`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Failed to store file "${fileId}" in database:`, error);
+    throw error;
+  }
+};
+
+// Retrieve file from database
+const getFileFromDatabase = async (fileId, database) => {
+  try {
+    console.log(`� Retrieving file "${fileId}" from database`);
+
+    const { eq } = require("drizzle-orm");
+
+    const fileRecord = await database
+      .select()
+      .from(systemConfig)
+      .where(eq(systemConfig.key, `file_${fileId}`))
+      .limit(1);
+
+    if (fileRecord.length === 0) {
+      console.log(`❌ File "${fileId}" not found in database`);
+      return null;
+    }
+
+    const fileData = fileRecord[0].value;
+    console.log(`✅ File "${fileId}" retrieved successfully from database`);
+
+    return {
+      buffer: Buffer.from(fileData.data, "base64"),
+      metadata: {
+        fileName: fileData.fileName,
+        contentType: fileData.contentType,
+        size: fileData.size,
+        uploadedBy: fileData.uploadedBy,
+        uploadedAt: fileData.uploadedAt,
+      },
+    };
+  } catch (error) {
+    console.error(
+      `❌ Failed to retrieve file "${fileId}" from database:`,
+      error
+    );
+    throw error;
   }
 };
 
@@ -1179,46 +1246,15 @@ app.post(
 
       // Generate unique file ID
       const fileId = crypto.randomUUID();
-      console.log("🆔 Generated file ID:", fileId); // Upload file to Netlify Blobs
-      console.log("☁️ Uploading to Netlify Blobs...");
-      console.log("🔧 Environment context:", {
-        CONTEXT: process.env.CONTEXT,
-        NODE_ENV: process.env.NODE_ENV,
-        NETLIFY: process.env.NETLIFY,
-        NETLIFY_DEV: process.env.NETLIFY_DEV,
-      });
+      console.log("🆔 Generated file ID:", fileId);
 
-      let blobStore;
-      let useDatabase = false;
-      
+      // Store file in database
+      console.log("💾 Storing file in database");
+
       try {
-        blobStore = getBlobStore("file-uploads");
-        console.log("✅ Successfully got blob store");
-      } catch (blobError) {
-        console.error("❌ Failed to get blob store:", blobError);
-        console.log("⚠️ Falling back to database storage for file data");
-        useDatabase = true;
-      }
+        await storeFileInDatabase(fileId, file.buffer, metadata, database);
 
-      let fileResponse;
-      
-      if (useDatabase) {
-        // Fallback: store file data directly in database
-        console.log("💾 Storing file data in database");
-        
-        const fileData = {
-          id: fileId,
-          fileName: file.originalname,
-          contentType: file.mimetype,
-          size: file.size,
-          uploadedBy: dbUser.id,
-          uploadedAt: new Date(),
-          fileData: file.buffer.toString('base64'), // Store as base64
-          metadata
-        };
-        
-        // You could store this in a files table or as JSONB in orders
-        fileResponse = {
+        const fileResponse = {
           id: fileId,
           fileName: file.originalname,
           contentType: file.mimetype,
@@ -1226,49 +1262,24 @@ app.post(
           uploadedBy: dbUser.id,
           uploadedAt: new Date(),
           url: `/api/files/download/${fileId}`,
-          storedIn: 'database'
+          storedIn: "database",
         };
-        
-        console.log("✅ File data stored in database");
-        
-      } else {
-        // Use Netlify Blobs
-        const blob = new Blob([file.buffer], { type: file.mimetype });
 
-        try {
-          await blobStore.set(fileId, blob, {
-            metadata,
-          });
-          console.log("✅ File uploaded to Netlify Blobs successfully");
-          
-          fileResponse = {
-            id: fileId,
-            fileName: file.originalname,
-            contentType: file.mimetype,
-            size: file.size,
-            uploadedBy: dbUser.id,
-            uploadedAt: new Date(),
-            url: `/api/files/download/${fileId}`,
-            storedIn: 'netlify-blobs'
-          };
-          
-        } catch (uploadError) {
-          console.error("❌ Failed to upload to Netlify Blobs:", uploadError);
-          return res.status(500).json({
-            error: "File upload to storage failed",
-            details: uploadError.message,
-          });
-        }
+        console.log("📤 Sending response with file ID:", fileId);
+
+        res.json({
+          success: true,
+          message: "File uploaded successfully",
+          file: fileResponse,
+          id: fileId, // Add for compatibility with frontend
+        });
+      } catch (uploadError) {
+        console.error("❌ Failed to store file in database:", uploadError);
+        return res.status(500).json({
+          error: "File upload failed",
+          details: uploadError.message,
+        });
       }
-
-      console.log("📤 Sending response with file ID:", fileId);
-
-      res.json({
-        success: true,
-        message: "File uploaded successfully",
-        file: fileResponse,
-        id: fileId, // Add for compatibility with frontend
-      });
     } catch (error) {
       console.error("❌ File upload error:", error);
       res.status(500).json({
@@ -1283,14 +1294,18 @@ app.post(
 app.get("/api/files/:id", requireAuth, async (req, res) => {
   try {
     const fileId = req.params.id;
-    const blobStore = getBlobStore("file-uploads");
+    const database = await initializeDatabase();
 
-    const result = await blobStore.getWithMetadata(fileId);
-    if (!result) {
+    console.log(`📋 Getting metadata for file: ${fileId}`);
+
+    const fileData = await getFileFromDatabase(fileId, database);
+
+    if (!fileData) {
       return res.status(404).json({ error: "File not found" });
     }
 
-    const metadata = result.metadata;
+    const { metadata } = fileData;
+
     res.json({
       id: fileId,
       fileName: metadata.fileName,
@@ -1299,6 +1314,7 @@ app.get("/api/files/:id", requireAuth, async (req, res) => {
       uploadedBy: metadata.uploadedBy,
       uploadedAt: metadata.uploadedAt,
       url: `/api/files/download/${fileId}`,
+      storedIn: "database",
     });
   } catch (error) {
     console.error("Get file metadata error:", error);
@@ -1339,15 +1355,17 @@ app.get("/api/files/order/:orderId", requireAuth, async (req, res) => {
 app.get("/api/files/download/:id", requireAuth, async (req, res) => {
   try {
     const fileId = req.params.id;
-    const blobStore = getBlobStore("file-uploads");
+    const database = await initializeDatabase();
 
-    const result = await blobStore.getWithMetadata(fileId);
-    if (!result) {
+    console.log(`📥 Downloading file: ${fileId}`);
+
+    const fileData = await getFileFromDatabase(fileId, database);
+
+    if (!fileData) {
       return res.status(404).json({ error: "File not found" });
     }
 
-    const metadata = result.metadata;
-    const blob = result.blob;
+    const { buffer, metadata } = fileData;
 
     // Set headers for download
     res.setHeader(
@@ -1358,15 +1376,17 @@ app.get("/api/files/download/:id", requireAuth, async (req, res) => {
       "Content-Disposition",
       `attachment; filename="${metadata.fileName}"`
     );
-    res.setHeader("Content-Length", metadata.size);
+    res.setHeader("Content-Length", metadata.size || buffer.length);
 
-    // Convert blob to buffer and send
-    const arrayBuffer = await blob.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    console.log(
+      `✅ Sending file: ${metadata.fileName} (${metadata.size} bytes)`
+    );
     res.send(buffer);
   } catch (error) {
     console.error("File download error:", error);
-    res.status(500).json({ error: "File download failed" });
+    res
+      .status(500)
+      .json({ error: "File download failed", details: error.message });
   }
 });
 

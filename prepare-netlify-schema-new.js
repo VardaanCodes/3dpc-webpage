@@ -5,6 +5,14 @@
  *
  * @format
  */
+await (async () => {
+  console.warn(
+    "[prepare-netlify-schema-new] Deprecated: use prepare-netlify-schema.js instead"
+  );
+  await import("./prepare-netlify-schema.js");
+})();
+
+/* Legacy implementation retained for reference.
 
 import fs from "fs";
 import path from "path";
@@ -226,3 +234,5 @@ try {
   console.error("Error preparing schema for Netlify:", error);
   process.exit(1);
 }
+
+*/

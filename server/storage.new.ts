@@ -1,4 +1,9 @@
-/** @format */
+/**
+ * DEPRECATED FILE – not referenced by the app.
+ * Kept temporarily for traceability; prefer `server/storage.ts` and `server/storage/repositoryStorage.ts`.
+ * Safe to delete after confirming no external tooling depends on it.
+ * @format
+ */
 
 import {
   users,

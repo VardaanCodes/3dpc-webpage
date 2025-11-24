@@ -704,4 +704,4 @@ export class RepositoryStorage implements IStorage {
 }
 
 // Export a singleton instance
-export const repositoryStorage = new RepositoryStorage();
+// Note: Consumers should import { storage } from '../../storage' instead of creating global instances here.

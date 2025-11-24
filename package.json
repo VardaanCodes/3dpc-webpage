@@ -14,6 +14,8 @@
     "check": "tsc",
     "validate": "node validate-integration.js",
     "check:firebase": "node scripts/check-firebase-config.js",
+  "format": "prettier --write .",
+  "format:check": "prettier --check .",
     "db:push": "drizzle-kit push",
     "db:migrate": "tsx scripts/migrate-db.ts",
     "db:generate": "drizzle-kit generate",
@@ -25,7 +27,6 @@
     "@hookform/resolvers": "^3.10.0",
     "@jridgewell/trace-mapping": "^0.3.29",
     "@neondatabase/serverless": "^0.10.4",
-    "@netlify/blobs": "^10.0.3",
     "@netlify/functions": "^4.1.9",
     "@netlify/sdk": "^2.26.3",
     "@radix-ui/react-accordion": "^1.2.11",
@@ -99,6 +100,7 @@
     "zod-validation-error": "^3.5.2"
   },
   "devDependencies": {
+  "prettier": "^3.3.3",
     "@replit/vite-plugin-cartographer": "^0.2.7",
     "@replit/vite-plugin-runtime-error-modal": "^0.0.3",
     "@tailwindcss/typography": "^0.5.16",

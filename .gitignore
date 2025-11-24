@@ -11,3 +11,5 @@ netlify/functions/server/serviceAccountKey.json
 attached_assets/.obsidian/
 attached_assets/.smart-env/
 **/node_modules/
+package-lock.json
+netlify/functions/server/pnpm-lock.yaml

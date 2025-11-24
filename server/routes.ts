@@ -1,5 +1,11 @@
 /** @format */
 
+export { registerRoutes } from "./routes/register";
+
+/*
+ * Legacy monolithic implementation retained for reference. Once the modular
+ * routers stabilize, this block can be deleted altogether.
+
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
@@ -1130,3 +1136,5 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   return httpServer;
 }
+
+*/
