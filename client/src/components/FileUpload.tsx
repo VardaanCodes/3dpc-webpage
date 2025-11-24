@@ -1,8 +1,12 @@
+/** @format */
+
 import { useState, useCallback } from "react";
-import { Upload, X, FileCode, AlertCircle } from "lucide-react";
+import { Upload, X, FileCode, AlertCircle, CheckCircle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { apiRequest } from "@/lib/queryClient";
+import { auth } from "@/lib/firebase";
 
 interface FileData {
   id: string;
@@ -10,6 +14,10 @@ interface FileData {
   size: number;
   type: string;
   file: File;
+  uploadStatus?: "pending" | "uploading" | "completed" | "error";
+  uploadProgress?: number;
+  uploadedFileId?: string;
+  errorMessage?: string;
 }
 
 interface FileUploadProps {
@@ -19,11 +27,11 @@ interface FileUploadProps {
   acceptedTypes?: string[];
 }
 
-export function FileUpload({ 
-  onFilesChange, 
-  maxFiles = 10, 
+export function FileUpload({
+  onFilesChange,
+  maxFiles = 10,
   maxFileSize = 50 * 1024 * 1024, // 50MB
-  acceptedTypes = ['.stl', '.gcode']
+  acceptedTypes = [".stl", ".gcode"],
 }: FileUploadProps) {
   const [files, setFiles] = useState<FileData[]>([]);
   const [dragActive, setDragActive] = useState(false);
@@ -32,62 +40,199 @@ export function FileUpload({
   const validateFile = (file: File): string | null => {
     // Check file size
     if (file.size > maxFileSize) {
-      return `File "${file.name}" is too large. Maximum size is ${maxFileSize / 1024 / 1024}MB.`;
+      return `File "${file.name}" is too large. Maximum size is ${
+        maxFileSize / 1024 / 1024
+      }MB.`;
     }
 
     // Check file type
-    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+    const fileExtension = "." + file.name.split(".").pop()?.toLowerCase();
     if (!acceptedTypes.includes(fileExtension)) {
-      return `File "${file.name}" has an unsupported format. Accepted formats: ${acceptedTypes.join(', ')}`;
+      return `File "${
+        file.name
+      }" has an unsupported format. Accepted formats: ${acceptedTypes.join(
+        ", "
+      )}`;
     }
 
     return null;
   };
 
-  const addFiles = useCallback((newFiles: FileList | File[]) => {
-    setError(null);
-    const fileArray = Array.from(newFiles);
-    
-    // Check total file count
-    if (files.length + fileArray.length > maxFiles) {
-      setError(`Cannot add more files. Maximum is ${maxFiles} files total.`);
-      return;
-    }
+  const uploadFile = async (fileData: FileData): Promise<void> => {
+    try {
+      console.log("🔄 Starting upload for file:", fileData.name, "ID:", fileData.id);
+      
+      // Update status to uploading
+      setFiles((prev) => {
+        const updated = prev.map((f) =>
+          f.id === fileData.id
+            ? { ...f, uploadStatus: "uploading", uploadProgress: 0 }
+            : f
+        );
+        console.log("📤 Updated file status to uploading. All files:", updated.map(f => ({name: f.name, status: f.uploadStatus})));
+        return updated;
+      });
 
-    const validFiles: FileData[] = [];
-    const errors: string[] = [];
+      const formData = new FormData();
+      formData.append("file", fileData.file);
 
-    fileArray.forEach((file) => {
-      const validationError = validateFile(file);
-      if (validationError) {
-        errors.push(validationError);
-      } else {
-        const fileData: FileData = {
-          id: `${file.name}-${Date.now()}-${Math.random()}`,
-          name: file.name,
-          size: file.size,
-          type: file.type,
-          file,
-        };
-        validFiles.push(fileData);
+      // Create headers with auth token
+      const headers: Record<string, string> = {};
+
+      // Add Firebase ID token if user is authenticated
+      const user = auth.currentUser;
+      if (user) {
+        try {
+          const idToken = await user.getIdToken();
+          headers["Authorization"] = `Bearer ${idToken}`;
+          // Add user email for debugging
+          if (user.email) {
+            headers["X-User-Email"] = user.email;
+          }
+        } catch (error) {
+          console.warn("Failed to get Firebase ID token:", error);
+        }
       }
-    });
 
-    if (errors.length > 0) {
-      setError(errors[0]); // Show first error
-      return;
+      console.log("📡 Making upload request to /api/files/upload");
+      const response = await fetch("/api/files/upload", {
+        method: "POST",
+        body: formData,
+        headers,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("❌ Upload error response:", errorText);
+        throw new Error(
+          `Upload failed: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const result = await response.json();
+      console.log("✅ Upload response received:", result);
+
+      // Ensure we have the uploaded file ID
+      const uploadedFileId = result.file?.id || result.id;
+      
+      if (!uploadedFileId) {
+        console.error("❌ No file ID in response:", result);
+        throw new Error("No file ID returned from server");
+      }
+
+      console.log("📝 File upload completed, ID:", uploadedFileId);
+
+      // Update file with uploaded metadata
+      setFiles((prev) => {
+        const updatedFiles = prev.map((f) =>
+          f.id === fileData.id
+            ? {
+                ...f,
+                uploadStatus: "completed",
+                uploadProgress: 100,
+                uploadedFileId: uploadedFileId,
+              }
+            : f
+        );
+        
+        console.log("✅ File marked as completed. All file statuses:", updatedFiles.map(f => ({
+          name: f.name, 
+          status: f.uploadStatus, 
+          uploadedId: f.uploadedFileId
+        })));
+        
+        // Notify parent of updated files
+        onFilesChange(updatedFiles);
+        return updatedFiles;
+      });
+    } catch (error) {
+      console.error("❌ File upload error:", error);
+      setFiles((prev) => {
+        const updatedFiles = prev.map((f) =>
+          f.id === fileData.id
+            ? {
+                ...f,
+                uploadStatus: "error",
+                uploadProgress: 0,
+                errorMessage:
+                  error instanceof Error ? error.message : "Upload failed",
+              }
+            : f
+        );
+        
+        console.log("❌ File marked as error. All file statuses:", updatedFiles.map(f => ({
+          name: f.name, 
+          status: f.uploadStatus, 
+          error: f.errorMessage
+        })));
+        
+        // Notify parent of updated files
+        onFilesChange(updatedFiles);
+        return updatedFiles;
+      });
     }
+  };
 
-    const updatedFiles = [...files, ...validFiles];
-    setFiles(updatedFiles);
-    onFilesChange(updatedFiles);
-  }, [files, maxFiles, maxFileSize, acceptedTypes, onFilesChange]);
+  const addFiles = useCallback(
+    (newFiles: FileList | File[]) => {
+      setError(null);
+      const fileArray = Array.from(newFiles);
+
+      // Check total file count
+      if (files.length + fileArray.length > maxFiles) {
+        setError(`Cannot add more files. Maximum is ${maxFiles} files total.`);
+        return;
+      }
+
+      const validFiles: FileData[] = [];
+      const errors: string[] = [];
+
+      fileArray.forEach((file) => {
+        const validationError = validateFile(file);
+        if (validationError) {
+          errors.push(validationError);
+        } else {
+          const fileData: FileData = {
+            id: `${file.name}-${Date.now()}-${Math.random()}`,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            file,
+            uploadStatus: "pending",
+          };
+          validFiles.push(fileData);
+        }
+      });
+
+      if (errors.length > 0) {
+        setError(errors[0]); // Show first error
+        return;
+      }
+
+      const updatedFiles = [...files, ...validFiles];
+      setFiles(updatedFiles);
+      onFilesChange(updatedFiles);
+
+      // Auto-upload files
+      validFiles.forEach((fileData) => {
+        uploadFile(fileData);
+      });
+    },
+    [files, maxFiles, maxFileSize, acceptedTypes, onFilesChange]
+  );
 
   const removeFile = (fileId: string) => {
-    const updatedFiles = files.filter(f => f.id !== fileId);
+    const updatedFiles = files.filter((f) => f.id !== fileId);
     setFiles(updatedFiles);
     onFilesChange(updatedFiles);
     setError(null);
+  };
+
+  const retryUpload = (fileId: string) => {
+    const fileData = files.find((f) => f.id === fileId);
+    if (fileData) {
+      uploadFile(fileData);
+    }
   };
 
   const handleDrag = (e: React.DragEvent) => {
@@ -114,14 +259,30 @@ export function FileUpload({
     if (e.target.files && e.target.files[0]) {
       addFiles(e.target.files);
     }
+    e.target.value = "";
   };
 
   const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
+    if (bytes === 0) return "0 Bytes";
     const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  };
+
+  const getFileStatusIcon = (status?: string) => {
+    switch (status) {
+      case "completed":
+        return <CheckCircle className="text-green-500 h-4 w-4" />;
+      case "uploading":
+        return (
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-cyan-500"></div>
+        );
+      case "error":
+        return <AlertCircle className="text-red-500 h-4 w-4" />;
+      default:
+        return <FileCode className="text-cyan-500 h-4 w-4" />;
+    }
   };
 
   return (
@@ -139,26 +300,33 @@ export function FileUpload({
         onDrop={handleDrop}
       >
         <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-        <p className="text-lg font-medium text-gray-300 mb-2">Drop your files here</p>
+        <p className="text-lg font-medium text-gray-300 mb-2">
+          Drop your files here
+        </p>
         <p className="text-sm text-gray-400 mb-4">or click to browse</p>
-        
+
         <input
           type="file"
           multiple
-          accept={acceptedTypes.join(',')}
+          accept={acceptedTypes.join(",")}
           onChange={handleFileInput}
           className="hidden"
           id="file-upload"
         />
-        
-        <Button asChild variant="outline" className="bg-cyan-500 hover:bg-cyan-600 text-white border-cyan-500">
+
+        <Button
+          asChild
+          variant="outline"
+          className="bg-cyan-500 hover:bg-cyan-600 text-white border-cyan-500"
+        >
           <label htmlFor="file-upload" className="cursor-pointer">
             Browse Files
           </label>
         </Button>
-        
+
         <p className="text-xs text-gray-400 mt-4">
-          Supported formats: {acceptedTypes.join(', ')}<br />
+          Supported formats: {acceptedTypes.join(", ")}
+          <br />
           Max file size: {maxFileSize / 1024 / 1024}MB per file
         </p>
       </div>
@@ -174,40 +342,118 @@ export function FileUpload({
       {/* Uploaded Files List */}
       {files.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-lg font-semibold text-white">Uploaded Files</h3>
+          <h3 className="text-lg font-semibold text-white">Files</h3>
           {files.map((file) => (
-            <div key={file.id} className="flex items-center justify-between bg-slate-800 rounded-lg p-3">
+            <div
+              key={file.id}
+              className="flex items-center justify-between bg-slate-800 rounded-lg p-3"
+            >
               <div className="flex items-center space-x-3">
-                <FileCode className="text-cyan-500 h-5 w-5" />
-                <div>
-                  <span className="text-sm font-medium text-white">{file.name}</span>
-                  <p className="text-xs text-gray-400">{formatFileSize(file.size)}</p>
+                {getFileStatusIcon(file.uploadStatus)}
+                <div className="flex-1">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-medium text-white">
+                      {file.name}
+                    </span>
+                    {file.uploadStatus === "completed" && (
+                      <span className="text-xs text-green-400">✓ Uploaded</span>
+                    )}
+                    {file.uploadStatus === "error" && (
+                      <span className="text-xs text-red-400">✗ Failed</span>
+                    )}
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <p className="text-xs text-gray-400">
+                      {formatFileSize(file.size)}
+                    </p>
+                    {file.uploadStatus === "uploading" && (
+                      <p className="text-xs text-cyan-400">Uploading...</p>
+                    )}
+                    {file.uploadStatus === "error" && file.errorMessage && (
+                      <p className="text-xs text-red-400">
+                        {file.errorMessage}
+                      </p>
+                    )}
+                  </div>
+                  {file.uploadStatus === "uploading" && (
+                    <Progress
+                      value={file.uploadProgress || 0}
+                      className="w-full mt-1 h-1"
+                    />
+                  )}
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => removeFile(file.id)}
-                className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center space-x-2">
+                {file.uploadStatus === "error" && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => retryUpload(file.id)}
+                    className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-900/20"
+                  >
+                    Retry
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeFile(file.id)}
+                  className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           ))}
         </div>
       )}
 
       {/* Upload Progress */}
+      {files.length > 0 && (
+        <div className="bg-slate-800 rounded-xl p-4">
+          <h3 className="text-lg font-semibold text-white mb-2">Upload Status</h3>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-400">Total Files</span>
+              <span className="text-white">{files.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Completed</span>
+              <span className="text-green-400">{files.filter(f => f.uploadStatus === "completed").length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Uploading</span>
+              <span className="text-cyan-400">{files.filter(f => f.uploadStatus === "uploading").length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">Failed</span>
+              <span className="text-red-400">{files.filter(f => f.uploadStatus === "error").length}</span>
+            </div>
+          </div>
+          {files.some(f => f.uploadStatus === "uploading" || f.uploadStatus === "pending") && (
+            <div className="mt-3 p-2 bg-cyan-900/20 border border-cyan-800 rounded text-cyan-200 text-sm">
+              <Clock className="inline h-4 w-4 mr-2" />
+              Files are uploading... Please wait before submitting your print request.
+            </div>
+          )}
+        </div>
+      )}
       <div className="bg-slate-800 rounded-xl p-6">
         <h3 className="text-lg font-semibold text-white mb-4">Upload Limits</h3>
         <div className="space-y-3">
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">Files Used</span>
-            <span className="text-white font-medium">{files.length}/{maxFiles}</span>
+            <span className="text-white font-medium">
+              {files.length}/{maxFiles}
+            </span>
           </div>
-          <Progress value={(files.length / maxFiles) * 100} className="w-full" />
+          <Progress
+            value={(files.length / maxFiles) * 100}
+            className="w-full"
+          />
           <p className="text-xs text-gray-400">
-            Limit resets every 30 days. Files are automatically deleted after 90 days.
+            Files are automatically uploaded and will be associated with your
+            print request.
           </p>
         </div>
       </div>

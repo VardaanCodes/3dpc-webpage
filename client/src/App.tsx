@@ -12,15 +12,19 @@ import { Dashboard } from "@/pages/Dashboard";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
 import SuperAdminDashboard from "@/pages/SuperAdminDashboard";
+import { AdminDashboard } from "@/pages/AdminDashboard";
 import DemoBanner from "@/components/DemoBanner";
 import Readme from "@/pages/Readme";
+import DebugFirebase from "@/pages/DebugFirebase";
 
 function Router() {
   return (
     <Switch>
+      {" "}
       {/* Public routes */}
       <Route path="/login" component={Login} />
       <Route path="/readme" component={Readme} />
+      <Route path="/debug" component={DebugFirebase} />
       {/* Protected routes */}
       <Route path="/submit">
         <ProtectedRoute>
@@ -46,10 +50,16 @@ function Router() {
           <Dashboard />
         </ProtectedRoute>
       </Route>
+      <Route path="/settings">
+        <ProtectedRoute>
+          <Navigation />
+          <Dashboard />
+        </ProtectedRoute>
+      </Route>
       <Route path="/admin">
         <ProtectedRoute requiredRole="admin">
           <Navigation />
-          <Dashboard />
+          <AdminDashboard />
         </ProtectedRoute>
       </Route>{" "}
       <Route path="/superadmin">

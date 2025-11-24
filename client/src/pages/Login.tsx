@@ -14,6 +14,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/components/AuthProvider";
 import { signInWithGoogle, signInAsGuest } from "@/lib/auth";
 import { Printer, Chrome, AlertCircle, Loader2 } from "lucide-react";
+import { getEnvironmentInfo } from "@/lib/environment";
+import { AuthDebugger } from "@/lib/authDebugger";
 
 export default function Login() {
   const { firebaseUser, loading, setGuestUser } = useAuth();
@@ -21,20 +23,68 @@ export default function Login() {
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  console.log("Login component state:", {
+    firebaseUser: firebaseUser?.email,
+    loading,
+    isSigningIn,
+    environment: getEnvironmentInfo(),
+  });
   // Redirect if already authenticated
   useEffect(() => {
-    if (!loading && firebaseUser) {
-      setLocation("/submit");
-    }
-  }, [loading, firebaseUser, setLocation]);
+    console.log("Login useEffect triggered:", {
+      loading,
+      firebaseUser: firebaseUser?.email,
+      isSigningIn,
+    });
 
+    AuthDebugger.log("Login useEffect", {
+      loading,
+      hasFirebaseUser: !!firebaseUser,
+      firebaseUserEmail: firebaseUser?.email,
+      isSigningIn,
+    });
+
+    if (!loading && firebaseUser && !isSigningIn) {
+      console.log("Redirecting to /submit...");
+      AuthDebugger.log("Redirecting to /submit", {
+        firebaseUserEmail: firebaseUser.email,
+      });
+
+      // Add a small delay to prevent rapid redirects
+      const timer = setTimeout(() => {
+        setLocation("/submit");
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, firebaseUser, setLocation, isSigningIn]);
   const handleSignIn = async () => {
     try {
       setIsSigningIn(true);
       setError(null);
-      await signInWithGoogle();
+
+      console.log("Starting sign-in process...");
+      AuthDebugger.log("Sign-in process started", getEnvironmentInfo());
+
+      const result = await signInWithGoogle();
+      console.log("Sign-in result:", result.user.email);
+
+      AuthDebugger.log("Sign-in successful", {
+        userEmail: result.user.email,
+        userId: result.user.uid,
+      });
+
+      // Don't redirect here - let the useEffect handle it
+      // after authentication state is properly set
+      console.log("Sign in successful, waiting for auth state...");
     } catch (error: any) {
       console.error("Sign in error:", error);
+
+      AuthDebugger.log("Sign-in error", {
+        error: error.message,
+        code: error.code,
+        stack: error.stack,
+      });
+
       let errorMessage = "Failed to sign in. Please try again.";
 
       if (error.code === "auth/unauthorized-domain") {
@@ -43,11 +93,23 @@ export default function Login() {
       } else if (error.code === "auth/popup-blocked") {
         errorMessage =
           "Pop-up was blocked. Please allow pop-ups and try again.";
-      } else if (error.code === "auth/cancelled-popup-request") {
+      } else if (
+        error.code === "auth/cancelled-popup-request" ||
+        error.code === "auth/popup-closed-by-user"
+      ) {
         errorMessage = "Sign-in was cancelled. Please try again.";
+      } else if (error.code === "auth/network-request-failed") {
+        errorMessage =
+          "Network error. Please check your connection and try again.";
+      } else if (error.message?.includes("@smail.iitm.ac.in")) {
+        errorMessage =
+          "Please use your @smail.iitm.ac.in email address to sign in.";
+      } else if (error.message) {
+        errorMessage = error.message;
       }
 
       setError(errorMessage);
+    } finally {
       setIsSigningIn(false);
     }
   };
@@ -93,12 +155,13 @@ export default function Login() {
         {/* Login Card */}
         <Card className="bg-slate-800 border-slate-700 shadow-xl">
           <CardHeader className="text-center">
+            {" "}
             <CardTitle className="text-white text-xl">
               Sign In to Continue
             </CardTitle>
             <CardDescription className="text-gray-400">
-              Use your IIT Madras Google account to access the print queue. If
-              you are facing any issues, contact the 3DPC
+              Use your IIT Madras @smail.iitm.ac.in Google account to access the
+              print queue. No other email domains are allowed.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -122,25 +185,32 @@ export default function Login() {
               ) : (
                 <>
                   <Chrome className="mr-3 h-5 w-5" />
-                  Sign in with Google
+                  Sign in with @smail.iitm.ac.in
                 </>
               )}
             </Button>
 
             <div className="text-center space-y-4">
               <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                {" "}
                 <h4 className="text-sm font-medium text-white mb-2">
                   Authentication Requirements
                 </h4>
                 <ul className="text-xs text-gray-400 space-y-1 text-left">
-                  <li>• Must use your @smail.iitm.ac.in email address</li>
+                  <li>
+                    •{" "}
+                    <strong>
+                      Must use your @smail.iitm.ac.in email address
+                    </strong>
+                  </li>
                   <li>
                     • Account will be automatically created on first login
                   </li>
+                  <li>• Only IIT Madras students are allowed access</li>
                 </ul>
               </div>
             </div>
-          </CardContent>{" "}
+          </CardContent>
         </Card>
 
         {/* Demo Mode Section */}
@@ -154,13 +224,13 @@ export default function Login() {
                 In the light of open-sourcing our project (thanks to Netlify for
                 inspiring and supporting open source), we are offering a demo
                 version of our site.
-              </p>{" "}
+              </p>
               <Button
                 onClick={handleGuestSignIn}
                 className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-medium py-3 text-base transition-colors"
               >
                 Login as Guest
-              </Button>{" "}
+              </Button>
               <div className="flex justify-between items-center text-xs">
                 <Link to="/readme" className="text-cyan-500 hover:underline">
                   Readme for Demo Features
@@ -178,7 +248,7 @@ export default function Login() {
                   />
                   <span>Powered by Netlify</span>
                 </a>
-              </div>{" "}
+              </div>
             </CardContent>
           </Card>
         </div>
